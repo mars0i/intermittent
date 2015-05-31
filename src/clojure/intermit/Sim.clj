@@ -1,5 +1,5 @@
-(ns intermittent.Sim
-  (:import [intermittent World]
+(ns intermit.Sim
+  (:import [intermit World]
            [sim.field.continuous Continuous2D]
            [sim.field.network Network Edge]
            [sim.util Double2D MutableDouble2D Interval]
@@ -7,7 +7,7 @@
            [ec.util MersenneTwisterFast]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(gen-class :name intermittent.World
+(gen-class :name intermit.World
     :extends sim.engine.SimState  ; includes signature for the start() method
     :exposes-methods {start superStart} ; alias method start() in superclass. (Don't name it 'super-start'. Use a Java name.)
     :exposes {random {:get gitRandom}, schedule {:get gitSchedule}}
@@ -23,7 +23,7 @@
 
 (defn -main
   [& args]
-  (sim.engine.SimState/doLoop intermittent.World (into-array String args))
+  (sim.engine.SimState/doLoop intermit.World (into-array String args))
   (System/exit 0))
 
 (defn -start
