@@ -1,5 +1,5 @@
 (defproject intermittent "0.1.0-SNAPSHOT"
-  :description "Experiments with intermittent between-group communication."
+  :description "Experiments with intermittent between-group cultural transmission"
   :url "http://example.com/FIXME"
   :license {:name "Gnu General Public License version 3.0"
             :url "http://www.gnu.org/copyleft/gpl.html"}
@@ -13,8 +13,7 @@
                    "resources/portfolio.jar"]
   :dependencies [[org.clojure/clojure "1.7.0-RC1"]]
   :source-paths ["src/clj"]
-  ;:jvm-opts ["-Xmx2g"]
-  ;:aot [] 
+  :aot [intermit.Sim] 
 )
 
 
