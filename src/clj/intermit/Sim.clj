@@ -1,12 +1,16 @@
 (ns intermit.Sim
-  (:import [intermit World]
-           [sim.field.continuous Continuous2D]
+  (:import [sim.field.continuous Continuous2D]
            [sim.field.network Network Edge]
            [sim.util Double2D MutableDouble2D Interval]
            [sim.engine Steppable Schedule]
            [ec.util MersenneTwisterFast]))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;(set! *warn-on-reflection* true)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; World: class for overall system
+;; Extends SimState.
+
 (gen-class :name intermit.World
     :extends sim.engine.SimState  ; includes signature for the start() method
     :exposes-methods {start superStart} ; alias method start() in superclass. (Don't name it 'super-start'. Use a Java name.)
@@ -17,8 +21,8 @@
     :main true) 
 
 ;; example
-(deftype IState [x])
-(defn -init-instance-state [seed] [[seed] (IState. (atom 0.0))])
+(deftype IState [indivs])
+(defn -init-instance-state [seed] [[seed] (IState. (atom []))])
 (defn -getX [^World this] @(:x (.IState this)))
 
 (defn -main
@@ -32,17 +36,38 @@
   ;; do stuff here
   )
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn make-indiv
+  [this]
+  (Indiv.
+    (atom (.nextDouble (.gitRandom this)))))
 
-(defprotocol IndivMeth ...)
+(defn make-community
+  [this num-members]
+  (swap! (.indivs this)
+         concat
+         (repeatedly #(make-indiv this) num-members)))
 
-(deftype Indiv [x]
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Indiv: class for individuals who communicate with each other.
+;; These could be persons, villages, subaks, etc.
+;; Initial version implements Steppable.
+
+;; Note that naming methods get_ or set_ means that the GUI will find them and
+;; allow inspection or setting of them in the UI.
+(defprotocol IndivMeths
+  (getRelig [this])
+  (set-relig! [this newval])
+  (getSucc [this])
+  (set-succ! [this newval]))
+
+(deftype Indiv [succ relig]
   Steppable
-  (step [this state] 
+  (step [this sim-state] 
+    (let [world ^World sim-state]
     ;; do stuff here
-    )
+    ))
   IndivMeths
-  ;; add stuff here
-  )
-
-(defn make-indiv [] (Indiv. (atom 0.0)))
+  (getRelig [this] @relig)
+  (set-relig! [this newval] (reset! succ newval))
+  (getSucc [this] @relig)
+  (set-succ! [this newval] (reset! succ newval)))
