@@ -2,5 +2,5 @@
 Experiments with intermittent between-group communication.  
 Generalizes BaliPlus in the bali repo.  
 
-Within-group communication is common, between-group communication is uncommon.
-Success-bias where success depends on group state.
+In this model, within-group communication is common, and between-group communication is uncommon.
+Transmission is success-biased, where success depends on group state.
