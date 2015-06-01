@@ -3,7 +3,8 @@
            [sim.field.network Network Edge]
            [sim.util Double2D MutableDouble2D Interval]
            [sim.engine Steppable Schedule]
-           [ec.util MersenneTwisterFast]))
+           [ec.util MersenneTwisterFast]
+           [java.util Collection]))
 
 ;(set! *warn-on-reflection* true)
 
@@ -12,12 +13,14 @@
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
 
-;; Note that naming methods get_ or set_ means that the GUI will find them and
-;; allow inspection or setting of them in the UI.
+;; Methods named "get_" or "set_" will be found by the UI via reflection.
+
 (defprotocol IndivMeths
+  ;; UI-available methods:
   (getRelig [this])
-  (set-relig! [this newval])
   (getSuccess [this])
+  ;; Other methods:
+  (set-relig! [this newval])
   (set-success! [this newval]))
 
 (deftype Indiv [success relig]
@@ -28,11 +31,34 @@
     ))
   IndivMeths
   (getRelig [this] @relig)
-  (set-relig! [this newval] (reset! success newval))
   (getSuccess [this] @relig)
+  (set-relig! [this newval] (reset! success newval))
   (set-success! [this newval] (reset! success newval)))
 
 (import [intermit.Sim Indiv])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Community: class for collections of Indivs into communities.
+
+(defprotocol CommunityMeths
+  ;; UI-available methods:
+  (getAvgRelig [this])    ; some kind of average value
+  (getAvgSuccess [this])  ; some kind of average value
+  ;; Other methods:
+  (add-members! [this new-members]))
+
+(deftype Community [members]
+  CommunityMeths
+  (getAvgRelig [this] 0.5)   ; TODO
+  (getAvgSuccess [this] 0.5)) ; TODO
+
+(import [intermit.Sim Community])
+
+(defn make-community
+  [size]
+  (let [members (repeatedly #(make-indiv me) size)
+        community (Community. (atom members))]
+    (swap! (.indivs me) concat members))) ; add members to entire population
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Population: class for overall system
@@ -42,15 +68,24 @@
     :extends sim.engine.SimState  ; includes signature for the start() method
     :exposes-methods {start superStart} ; alias method start() in superclass. (Don't name it 'super-start'. Use a Java name.)
     :exposes {random {:get gitRandom}, schedule {:get gitSchedule}}
-    :methods []
+    :methods [[getNumCommunities [] long]
+              [setNumCommunities [long] void]
+              [getTargetNumIndivsPerCommunity [] long]
+              [setTargetIndivsPerCommunity [long] void]
+              [getCommunities [] java.util.Collection]
+              [getIndivis [] java.util.Collection]]
     :state iState
     :init init-istate
     :main true) 
 
-;; example
-(deftype IState [indivs])
-(defn -init-instance-state [seed] [[seed] (IState. (atom []))])
-;(defn -getX [^Population this] @(:x (.IState this)))
+(deftype IState [numCommunities targetIndivsPerCommunity communities indivs])
+(defn -init-instance-state [seed] [[seed] (iState. (atom 10) (atom 10) (atom []) (atom []))])
+(defn -getNumCommunities [this] @(.numCommunities (.iState this)))
+(defn -setNumCommunities [this newval] (reset! (.numCommunities (.iState this)) newval))
+(defn -getTargetIndivsPerCommunity [this] @(.targetIndivsPerCommunity (.iState this)))
+(defn -setTargetIndivsPerCommunity [this newval] (reset! (.targetIndivsPerCommunity (.iState this)) newval))
+(defn -getCommunities [this] @(.communities (.iState this)))
+(defn -getIndivs [this] @(.indivs (.iState this)))
 
 (defn -main
   [& args]
@@ -60,6 +95,7 @@
 (defn -start
   [this]
   (.superStart this)
+  (let [istate (.iState this)]
   ;; make m communities of (average) size n
   )
 
@@ -68,9 +104,3 @@
   (Indiv.
     (atom (.nextDouble (.gitRandom this)))   ; relig
     (atom (.nextDouble (.gitRandom this))))) ; success
-
-(defn make-community
-  [this size]
-  (let [members (repeatedly #(make-indiv this) size)]
-    ;; add members to community here
-    (swap! (.indivs this) concat members))) ; add members to entire population
