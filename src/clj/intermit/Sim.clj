@@ -16,24 +16,22 @@
 ;; Methods named "get_" or "set_" will be found by the UI via reflection.
 
 (defprotocol IndivMeths
-  ;; UI-available methods:
-  (getRelig [this])
+  (getRelig [this])           ;; UI-available methods
   (getSuccess [this])
-  ;; Other methods:
-  (set-relig! [this newval])
+  (set-relig! [this newval])  ;; Other methods
   (set-success! [this newval]))
 
 (deftype Indiv [success relig]
-  Steppable
-  (step [this sim-state] 
-    (let [population ^Population sim-state]   ; why don't I have to import Population to cast with it?
-    ;; do stuff here
-    ))
   IndivMeths
   (getRelig [this] @relig)
   (getSuccess [this] @relig)
   (set-relig! [this newval] (reset! success newval))
-  (set-success! [this newval] (reset! success newval)))
+  (set-success! [this newval] (reset! success newval))
+  Steppable
+  (step [this sim-state] 
+    (let [population ^Population sim-state]   ; why don't I have to import Population to cast with it?
+    ;; do stuff here
+    )))
 
 (import [intermit.Sim Indiv])
 
@@ -43,9 +41,7 @@
 (defprotocol CommunityMeths
   ;; UI-available methods:
   (getAvgRelig [this])    ; some kind of average value
-  (getAvgSuccess [this])  ; some kind of average value
-  ;; Other methods:
-  (add-members! [this new-members]))
+  (getAvgSuccess [this]))  ; some kind of average value
 
 (deftype Community [members]
   CommunityMeths
@@ -102,5 +98,5 @@
 (defn make-community
   [this size]
   (let [members (repeatedly #(make-indiv this) size)
-        community (Community. (atom members))]
+        community (Community. members)]
     (swap! (.indivs this) concat members))) ; add members to entire population
