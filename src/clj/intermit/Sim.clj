@@ -54,12 +54,6 @@
 
 (import [intermit.Sim Community])
 
-(defn make-community
-  [size]
-  (let [members (repeatedly #(make-indiv me) size)
-        community (Community. (atom members))]
-    (swap! (.indivs me) concat members))) ; add members to entire population
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Population: class for overall system
 ;; Extends SimState.
@@ -79,7 +73,7 @@
     :main true) 
 
 (deftype IState [numCommunities targetIndivsPerCommunity communities indivs])
-(defn -init-instance-state [seed] [[seed] (iState. (atom 10) (atom 10) (atom []) (atom []))])
+(defn -init-instance-state [seed] [[seed] (IState. (atom 10) (atom 10) (atom []) (atom []))])
 (defn -getNumCommunities [this] @(.numCommunities (.iState this)))
 (defn -setNumCommunities [this newval] (reset! (.numCommunities (.iState this)) newval))
 (defn -getTargetIndivsPerCommunity [this] @(.targetIndivsPerCommunity (.iState this)))
@@ -97,10 +91,16 @@
   (.superStart this)
   (let [istate (.iState this)]
   ;; make m communities of (average) size n
-  )
+  ))
 
 (defn make-indiv
   [this]
   (Indiv.
     (atom (.nextDouble (.gitRandom this)))   ; relig
     (atom (.nextDouble (.gitRandom this))))) ; success
+
+(defn make-community
+  [this size]
+  (let [members (repeatedly #(make-indiv this) size)
+        community (Community. (atom members))]
+    (swap! (.indivs this) concat members))) ; add members to entire population
