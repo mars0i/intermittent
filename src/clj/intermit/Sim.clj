@@ -86,9 +86,7 @@
     :methods [[getNumCommunities [] long]
               [setNumCommunities [long] void]
               [getTargetIndivsPerCommunity [] long]
-              [setTargetIndivsPerCommunity [long] void]
-              [getIndivs [] java.util.Collection]
-              [getCommunities [] java.util.Collection]]
+              [setTargetIndivsPerCommunity [long] void]]
     :state instanceState
     :init init-istate
     :main true) 
@@ -96,7 +94,7 @@
 (deftype InstanceState [numCommunities           ; how many second-level communities
                         targetIndivsPerCommunity ; how many indivs on average per community
                         communities
-                        indivs])  ; all indivs in all communities under top community
+                        indivs])  ; indivs in all communities
 
 (defn -init-instance-state
   [seed]
@@ -110,8 +108,6 @@
 (defn -setNumCommunities [this newval] (reset! (.numCommunities (.instanceState this))))
 (defn -getTargetIndivsPerCommunity [this] @(.targetIndivsPerCommunity (.instanceState this)))
 (defn -setTargetIndivsPerCommunity [this newval] (reset! (.targetIndivsPerCommunity (.instanceState this))))
-(defn -getIndivs [this] @(.indivs (.instanceState this)))
-(defn -getCommunities [this] @(.communities (.instanceState this)))
 
 (defn -main
   [& args]
