@@ -39,7 +39,7 @@
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
 
-(deftype Indiv [success relig neighbors]
+(deftype Indiv [success relig neighbors] ; TODO should neighbor relations be in the community instead? nah.
   CulturedP
   (getRelig [this] @relig)
   (getSuccess [this] @success)
@@ -77,7 +77,7 @@
 (defn make-community-of-indivs
   [sim-state size]
   (Community. (repeatedly #(make-indiv sim-state) size)))
-;; TODO: Add neighbor relations
+;; TODO: Add neighbor relations.  Hmm.  Should it be in the community, rather in the indiv??
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Population: class for overall system
