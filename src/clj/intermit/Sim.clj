@@ -39,7 +39,7 @@
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
 
-(deftype Indiv [success relig]
+(deftype Indiv [success relig neighbors]
   CulturedP
   (getRelig [this] @relig)
   (getSuccess [this] @success)
@@ -57,8 +57,10 @@
 (defn make-indiv
   [sim-state]
   (Indiv.
-    (atom (.nextDouble (.gitRandom sim-state)))   ; relig
-    (atom (.nextDouble (.gitRandom sim-state))))) ; success
+    (atom (.nextDouble (.gitRandom sim-state)))  ; relig
+    (atom (.nextDouble (.gitRandom sim-state)))  ; success
+    nil)) ; TODO should this be an atom, so we can set it?  Or assoc it into a clone?  Can I do that with deftype?
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
@@ -75,6 +77,7 @@
 (defn make-community-of-indivs
   [sim-state size]
   (Community. (repeatedly #(make-indiv sim-state) size)))
+;; TODO: Add neighbor relations
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Population: class for overall system
