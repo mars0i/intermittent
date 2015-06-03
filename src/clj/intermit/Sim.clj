@@ -81,9 +81,14 @@
 
 (gen-class :name intermit.Population
     :extends sim.engine.SimState  ; includes signature for the start() method
-    :exposes-methods {start superStart} ; alias method start() in superclass. (Don't name it 'super-start'. Use a Java name.)
+    :exposes-methods {start superStart} ; alias method start() in superclass. (Don't name it 'super-start'; use a Java name.)
     :exposes {random {:get gitRandom}, schedule {:get gitSchedule}}
-    :methods [[getIndivs [] java.util.Collection]]
+    :methods [[getNumCommunities [] long]
+              [setNumCommunities [long] void]
+              [getTargetIndivsPerCommunity [] long]
+              [setTargetIndivsPerCommunity [long] void]
+              [getIndivs [] java.util.Collection]
+              [getCommunities [] java.util.Collection]]
     :state instanceState
     :init init-istate
     :main true) 
@@ -100,8 +105,13 @@
                           (atom [])
                           (atom []))])
 
-(defn -getIndivs [this] (.indivs (.instanceState this)))
-(defn -getCommunities [this] (.communities (.instanceState this)))
+;; Only used for (re-)initialization; no need to type hint:
+(defn -getNumCommunities [this] @(.numCommunities (.instanceState this)))
+(defn -setNumCommunities [this newval] (reset! (.numCommunities (.instanceState this))))
+(defn -getTargetIndivsPerCommunity [this] @(.targetIndivsPerCommunity (.instanceState this)))
+(defn -setTargetIndivsPerCommunity [this newval] (reset! (.targetIndivsPerCommunity (.instanceState this))))
+(defn -getIndivs [this] @(.indivs (.instanceState this)))
+(defn -getCommunities [this] @(.communities (.instanceState this)))
 
 (defn -main
   [& args]
