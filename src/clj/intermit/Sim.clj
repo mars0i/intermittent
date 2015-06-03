@@ -8,74 +8,100 @@
 
 ;(set! *warn-on-reflection* true)
 
+;; Tip: Methods named "getBlahBlah" or "setBlahBlah" will be found by the UI via reflection.
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Indiv: class for individuals who communicate with each other.
+;; DEFAULTS
+
+(def initial-num-communities 10)
+(def initial-target-indivs-per-community 10)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; PROTOCOLS/INTERFACES
+
+;; Separating these allows future versions in which e.g. communities can communicate,
+;; and allows a unified interface for finding out average culture of a community
+;; cultural values of indivs, etc.
+
+(defprotocol CulturedP
+  (getRelig [this])             ;; UI-available methods
+  (getSuccess [this])
+  (update-success! [this])) ;; not available to UI
+
+(defprotocol CommunicatorP
+  (copy-relig! [this]))
+
+(defprotocol CommunityP
+  (getMembers [this]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; INDIV: class for individuals who communicate with each other.
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
 
-;; Methods named "get_" or "set_" will be found by the UI via reflection.
-
-(defprotocol IndivMeths
-  (getRelig [this])           ;; UI-available methods
-  (getSuccess [this])
-  (set-relig! [this newval])  ;; Other methods
-  (set-success! [this newval]))
-
 (deftype Indiv [success relig]
-  IndivMeths
+  CulturedP
   (getRelig [this] @relig)
-  (getSuccess [this] @relig)
-  (set-relig! [this newval] (reset! success newval))
-  (set-success! [this newval] (reset! success newval))
+  (getSuccess [this] @success)
+  (update-success! [this] "TODO") ; TODO
+  CommunicatorP
+  (copy-relig! [this] "TODO") ; TODO
   Steppable
   (step [this sim-state] 
     (let [population ^Population sim-state]   ; why don't I have to import Population to cast with it?
-    ;; do stuff here
+    ;; TODO
     )))
 
 (import [intermit.Sim Indiv])
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Community: class for collections of Indivs into communities.
+(defn make-indiv
+  [sim-state]
+  (Indiv.
+    (atom (.nextDouble (.gitRandom sim-state)))   ; relig
+    (atom (.nextDouble (.gitRandom sim-state))))) ; success
 
-(defprotocol CommunityMeths
-  ;; UI-available methods:
-  (getAvgRelig [this])    ; some kind of average value
-  (getAvgSuccess [this]))  ; some kind of average value
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; COMMUNITY: class for collections of Indivs or collections of Communities.
 
 (deftype Community [members]
-  CommunityMeths
-  (getAvgRelig [this] 0.5)   ; TODO
-  (getAvgSuccess [this] 0.5)) ; TODO
+  CommunityP
+  (getMembers [this] members)
+  CulturedP
+  (getRelig [this] 0.5)    ; summary of members' values
+  (getSuccess [this] 0.5)) ; TODOsummary of members' values
 
 (import [intermit.Sim Community])
 
+(defn make-community-of-indivs
+  [sim-state size]
+  (Community. (repeatedly #(make-indiv sim-state) size)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Population: class for overall system
-;; Extends SimState.
 
 (gen-class :name intermit.Population
     :extends sim.engine.SimState  ; includes signature for the start() method
     :exposes-methods {start superStart} ; alias method start() in superclass. (Don't name it 'super-start'. Use a Java name.)
     :exposes {random {:get gitRandom}, schedule {:get gitSchedule}}
-    :methods [[getNumCommunities [] long]
-              [setNumCommunities [long] void]
-              [getTargetNumIndivsPerCommunity [] long]
-              [setTargetIndivsPerCommunity [long] void]
-              [getCommunities [] java.util.Collection]
-              [getIndivis [] java.util.Collection]]
-    :state iState
+    :methods [[getIndivs [] java.util.Collection]]
+    :state instanceState
     :init init-istate
     :main true) 
 
-(deftype IState [numCommunities targetIndivsPerCommunity communities indivs])
-(defn -init-instance-state [seed] [[seed] (IState. (atom 10) (atom 10) (atom []) (atom []))])
-(defn -getNumCommunities [this] @(.numCommunities (.iState this)))
-(defn -setNumCommunities [this newval] (reset! (.numCommunities (.iState this)) newval))
-(defn -getTargetIndivsPerCommunity [this] @(.targetIndivsPerCommunity (.iState this)))
-(defn -setTargetIndivsPerCommunity [this newval] (reset! (.targetIndivsPerCommunity (.iState this)) newval))
-(defn -getCommunities [this] @(.communities (.iState this)))
-(defn -getIndivs [this] @(.indivs (.iState this)))
+(deftype InstanceState [numCommunities           ; how many second-level communities
+                        targetIndivsPerCommunity ; how many indivs on average per community
+                        communities
+                        indivs])  ; all indivs in all communities under top community
+
+(defn -init-instance-state
+  [seed]
+  [[seed] (InstanceState. (atom initial-num-communities)
+                          (atom initial-target-indivs-per-community) 
+                          (atom [])
+                          (atom []))])
+
+(defn -getIndivs [this] (.indivs (.instanceState this)))
+(defn -getCommunities [this] (.communities (.instanceState this)))
 
 (defn -main
   [& args]
@@ -85,18 +111,11 @@
 (defn -start
   [this]
   (.superStart this)
-  (let [istate (.iState this)]
-  ;; make m communities of (average) size n
-  ))
-
-(defn make-indiv
-  [this]
-  (Indiv.
-    (atom (.nextDouble (.gitRandom this)))   ; relig
-    (atom (.nextDouble (.gitRandom this))))) ; success
-
-(defn make-community
-  [this size]
-  (let [members (repeatedly #(make-indiv this) size)
-        community (Community. members)]
-    (swap! (.indivs this) concat members))) ; add members to entire population
+  (let [instance-state (.instanceState this)
+        num-communities  (.numCommunities instance-state)
+        indivs-per-community (.targetIndivsPerCommunity instance-state)
+        communities (repeatedly #(make-community-of-indivs this indivs-per-community)
+                                num-communities)
+        indivs (mapcat getMembers communities)]
+    (reset! (.communities instance-state) communities)
+    (reset! (.indivs instance-state) indivs)))
