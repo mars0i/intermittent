@@ -1,10 +1,9 @@
 (ns intermit.Sim
-  (:import [sim.field.continuous Continuous2D]
-           [sim.field.network Network Edge]
-           [sim.util Double2D MutableDouble2D Interval]
+  (:import ;[sim.field.continuous Continuous2D]
+           ;[sim.field.network Network Edge]
+           ;[sim.util Double2D MutableDouble2D Interval]
            [sim.engine Steppable Schedule]
-           [ec.util MersenneTwisterFast]
-           [java.util Collection]))
+           [ec.util MersenneTwisterFast]))
 
 ;(set! *warn-on-reflection* true)
 
@@ -14,7 +13,7 @@
 ;; DEFAULTS
 
 (def initial-num-communities 10)
-(def initial-target-indivs-per-community 10)
+(def initial-mean-indivs-per-community 10)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PROTOCOLS/INTERFACES
@@ -39,7 +38,7 @@
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
 
-(deftype Indiv [success relig neighbors] ; TODO should neighbor relations be in the community instead? nah.
+(deftype Indiv [success relig neighbors] ; should neighbor relations be in the community instead? nah.
   CulturedP
   (getRelig [this] @relig)
   (getSuccess [this] @success)
@@ -48,8 +47,8 @@
   (copy-relig! [this] "TODO") ; TODO
   Steppable
   (step [this sim-state] 
-    (let [population ^Population sim-state]   ; why don't I have to import Population to cast with it?
-    ;; TODO
+    (let [sim ^Sim sim-state] ; kludge to cast to my class--can't put it in signature
+      (println "My relig is" @relig "and my success is" @success)
     )))
 
 (import [intermit.Sim Indiv])
@@ -57,8 +56,8 @@
 (defn make-indiv
   [sim-state]
   (Indiv.
-    (atom (.nextDouble (.gitRandom sim-state)))  ; relig
-    (atom (.nextDouble (.gitRandom sim-state)))  ; success
+    (atom (.nextDouble (.random sim-state)))  ; relig
+    (atom (.nextDouble (.random sim-state)))  ; success
     nil)) ; TODO should this be an atom, so we can set it?  Or assoc it into a clone?  Can I do that with deftype?
 
 
@@ -76,55 +75,55 @@
 
 (defn make-community-of-indivs
   [sim-state size]
-  (Community. (repeatedly #(make-indiv sim-state) size)))
+  (Community. (doall (repeatedly size #(make-indiv sim-state))))) ; seq is short; don't wait for late-realization bugs
 ;; TODO: Add neighbor relations.  Hmm.  Should it be in the community, rather in the indiv??
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Population: class for overall system
+;; Sim: class for overall system
 
-(gen-class :name intermit.Population
+(gen-class :name intermit.Sim
     :extends sim.engine.SimState  ; includes signature for the start() method
     :exposes-methods {start superStart} ; alias method start() in superclass. (Don't name it 'super-start'; use a Java name.)
-    :exposes {random {:get gitRandom}, schedule {:get gitSchedule}}
     :methods [[getNumCommunities [] long]
               [setNumCommunities [long] void]
               [getTargetIndivsPerCommunity [] long]
               [setTargetIndivsPerCommunity [long] void]]
     :state instanceState
-    :init init-istate
-    :main true) 
+    :init init-instance-state
+    :main true)
 
-(deftype InstanceState [numCommunities           ; how many second-level communities
-                        targetIndivsPerCommunity ; how many indivs on average per community
-                        communities
-                        indivs])  ; indivs in all communities
+(deftype InstanceState [numCommunities meanIndivsPerCommunity communities indivs])
 
 (defn -init-instance-state
   [seed]
   [[seed] (InstanceState. (atom initial-num-communities)
-                          (atom initial-target-indivs-per-community) 
+                          (atom initial-mean-indivs-per-community) 
                           (atom [])
                           (atom []))])
 
 ;; Only used for (re-)initialization; no need to type hint:
 (defn -getNumCommunities [this] @(.numCommunities (.instanceState this)))
 (defn -setNumCommunities [this newval] (reset! (.numCommunities (.instanceState this))))
-(defn -getTargetIndivsPerCommunity [this] @(.targetIndivsPerCommunity (.instanceState this)))
-(defn -setTargetIndivsPerCommunity [this newval] (reset! (.targetIndivsPerCommunity (.instanceState this))))
+(defn -getTargetIndivsPerCommunity [this] @(.meanIndivsPerCommunity (.instanceState this)))
+(defn -setTargetIndivsPerCommunity [this newval] (reset! (.meanIndivsPerCommunity (.instanceState this))))
 
 (defn -main
   [& args]
-  (sim.engine.SimState/doLoop intermit.Population (into-array String args))
+  (sim.engine.SimState/doLoop intermit.Sim (into-array String args))
   (System/exit 0))
 
+;; doall all sequences below.  They're short, so there's no point in waiting for
+;; them to get realized who knows where/when, given that the program has mutable state.
 (defn -start
   [this]
   (.superStart this)
-  (let [instance-state (.instanceState this)
-        num-communities  (.numCommunities instance-state)
-        indivs-per-community (.targetIndivsPerCommunity instance-state)
-        communities (repeatedly #(make-community-of-indivs this indivs-per-community)
-                                num-communities)
-        indivs (mapcat getMembers communities)]
+  (let [schedule (.schedule this)
+        instance-state (.instanceState this)
+        num-communities  @(.numCommunities instance-state)
+        indivs-per-community @(.meanIndivsPerCommunity instance-state)
+        communities (doall (repeatedly num-communities
+                                       #(make-community-of-indivs this indivs-per-community)))
+        indivs (doall (mapcat getMembers communities))]
     (reset! (.communities instance-state) communities)
-    (reset! (.indivs instance-state) indivs)))
+    (reset! (.indivs instance-state) indivs)
+    (doseq [indiv indivs] (.scheduleRepeating schedule indiv))))
