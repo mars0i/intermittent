@@ -10,10 +10,16 @@
 ;; Tip: Methods named "getBlahBlah" or "setBlahBlah" will be found by the UI via reflection.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; DEFAULTS
+;; DEFAULTS AND UTILITY
 
 (def initial-num-communities 10)
 (def initial-mean-indivs-per-community 10)
+
+(defn sample-with-repl
+  [rng num-samples coll]
+  (let [size (count coll)]
+    (for [_ (range num-samples)]
+      (nth coll (.nextInt rng size)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PROTOCOLS/INTERFACES
@@ -48,18 +54,39 @@
   Steppable
   (step [this sim-state] 
     (let [sim ^Sim sim-state] ; kludge to cast to my class--can't put it in signature
-      (println "My relig is" @relig "and my success is" @success)
+      (println "My relig is" @relig ", my success is" @success ", and my neighbors are:\n" @neighbors)
     )))
 
 (import [intermit.Sim Indiv])
 
 (defn make-indiv
+  "Make an indiv with appropriate defaults values."
   [sim-state]
   (Indiv.
     (atom (.nextDouble (.random sim-state)))  ; relig
     (atom (.nextDouble (.random sim-state)))  ; success
-    nil)) ; TODO should this be an atom, so we can set it?  Or assoc it into a clone?  Can I do that with deftype?
+    (atom []))) ; TODO should this be an atom, so we can set it?  Or assoc it into a clone?  Can I do that with deftype?
 
+(defn link-all-indivs!
+  "Link each individual in individuals to every other."
+  ([indivs]
+   (doseq [indiv indivs] (reset! (.neighbors indiv) indivs))
+   indivs)
+  ([sim-state-ignored links-per-indiv-ignored indivs]
+   (link-all-indivs! indivs)))
+
+(defn n-random-links-per-indiv!
+  "Give each indiv in individuals a randomly chosen links-per-indiv number
+  of links to others in individuals."
+  [sim-state links-per-indiv indivs]
+  (let [rng (.random sim-state)]
+    (println rng)
+    (doseq [indiv indivs]
+      (reset! (.neighbors indiv) 
+              (doall (sample-with-repl rng links-per-indiv indivs)))))
+  indivs)
+
+;; define other options here
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
@@ -74,9 +101,11 @@
 (import [intermit.Sim Community])
 
 (defn make-community-of-indivs
+  "Make a community with size number of indivs in it."
   [sim-state size]
-  (Community. (doall (repeatedly size #(make-indiv sim-state))))) ; seq is short; don't wait for late-realization bugs
-;; TODO: Add neighbor relations.  Hmm.  Should it be in the community, rather in the indiv??
+  (let [indivs  (doall (repeatedly size #(make-indiv sim-state)))] ; it's short; don't wait for late-realization bugs.
+    (n-random-links-per-indiv! sim-state 3 indivs) ; TODO TEMPORARY
+    (Community. indivs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sim: class for overall system
@@ -92,9 +121,17 @@
     :init init-instance-state
     :main true)
 
-(deftype InstanceState [numCommunities meanIndivsPerCommunity communities indivs])
+
+;; TODO: How can I allow user to choose the link function?
+
+;; Note some of these have to be atoms so that that we can allow restarting with a different setup.
+(deftype InstanceState [numCommunities          ; number of communities
+                        meanIndivsPerCommunity  ; mean or exact number of indivs in each
+                        communities             ; holds the communities
+                        indivs])                ; holds all individuals
 
 (defn -init-instance-state
+  "Initializes instance-state when an instance of class Sim is created."
   [seed]
   [[seed] (InstanceState. (atom initial-num-communities)
                           (atom initial-mean-indivs-per-community) 
@@ -115,6 +152,8 @@
 ;; doall all sequences below.  They're short, so there's no point in waiting for
 ;; them to get realized who knows where/when, given that the program has mutable state.
 (defn -start
+  "Function called to (re)start a new simulation run.  Initializes a new
+  set of communities, each with a new set of community members."
   [this]
   (.superStart this)
   (let [schedule (.schedule this)
