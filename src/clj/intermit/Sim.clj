@@ -17,7 +17,7 @@
 ;;   parallel by updating a "new" version of a variable from others "old" versions.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; DEFAULTS AND UTILITY
+;; DEFAULTS AND UTILITY CODE
 
 (def initial-num-communities 10)
 (def initial-mean-indivs-per-community 10)
@@ -61,15 +61,19 @@
 ;; and allows a unified interface for finding out average culture of a community
 ;; cultural values of indivs, etc.
 
+;; This can be applied to communities as well as individuals.
 (defprotocol CulturedP
+  "Protocol for things that can have culture."
   (getRelig [this])             ;; UI-available methods
   (getSuccess [this])
   (update-success! [this])) ;; not available to UI
 
 (defprotocol CommunicatorP
+  "Protocol for things that can communicate culture."
   (copy-relig! [this]))
 
 (defprotocol CommunityP
+  "Protocol for communities."
   (getMembers [this]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -87,7 +91,7 @@
   Steppable
   (step [this sim-state] 
     (let [sim ^Sim sim-state] ; kludge to cast to my class--can't put it in signature
-      (println "My relig is" @relig ", my success is" @success ", and my neighbors are:\n" @neighbors)
+      (println @relig @success (count @neighbors))
     )))
 
 (import [intermit.Sim Indiv])
@@ -98,27 +102,29 @@
   (Indiv.
     (atom (.nextDouble (.random sim-state)))  ; relig
     (atom (.nextDouble (.random sim-state)))  ; success
-    (atom []))) ; TODO should this be an atom, so we can set it?  Or assoc it into a clone?  Can I do that with deftype?
+    (atom []))) ; An atom even though the links don't change after init: it's too hard to create relationships otherwise.
 
 (defn link-all-indivs!
   "Link each individual in individuals to every other."
   ([indivs]
-   (doseq [indiv indivs] (reset! (.neighbors indiv) indivs))
+   (let [indivs-set (set indivs)]
+     (doseq [indiv indivs]
+       (reset! (.neighbors indiv) (vec (disj indivs-set indiv)))))
    indivs)
   ([sim-state-ignored links-per-indiv-ignored indivs]
    (link-all-indivs! indivs)))
 
 ;; TODO NOT RIGHT.  This only provides one-way links.
 ;; REWRITE USING sample-index-pairs-without-identicals
-;(defn n-random-links-per-indiv!
-;  "Give each indiv in individuals a randomly chosen links-per-indiv number
-;  of links to others in individuals."
-;  [sim-state links-per-indiv indivs]
-;  (let [rng (.random sim-state)]
-;    (doseq [indiv indivs]
-;      (reset! (.neighbors indiv) 
-;              (doall (sample-without-repl rng links-per-indiv indivs)))))
-;  indivs)
+(defn bad-n-random-links-per-indiv!
+  "Give each indiv in individuals a randomly chosen links-per-indiv number
+  of links to others in individuals."
+  [sim-state links-per-indiv indivs]
+  (let [rng (.random sim-state)]
+    (doseq [indiv indivs]
+      (reset! (.neighbors indiv) 
+              (doall (sample-without-repl rng links-per-indiv indivs)))))
+  indivs)
 
 ;; Does this really do what it says?
 (defn n-random-links-per-indiv!
@@ -134,9 +140,28 @@
       (swap! (.neighbors (nth indivs i)) conj (nth indivs j))
       (swap! (.neighbors (nth indivs j)) conj (nth indivs i)))))
 
+;; Erdos-Renyi network linking (I think)
+;; This isn't really what I want.
+;; It doesn't force all members of a community to be connected.
+(defn erdos-renyi-link-indivs!
+  "For each pair of indivs, with probability mean-links-per-indiv / indivs,
+  make them each others' neighbors."
+  [sim-state mean-links-per-indiv indivs]
+  (let [rng (.random sim-state)
+        num-indivs (count indivs)
+        mean (/ mean-links-per-indiv num-indivs)]
+    (doseq [i (range num-indivs)
+            j (range i)          ; lower triangle without diagonal
+            :when (< (.nextDouble rng) mean)]
+      (swap! (.neighbors (nth indivs i)) conj (nth indivs j))
+      (swap! (.neighbors (nth indivs j)) conj (nth indivs i))))
+  indivs)
 
-
-;; define other options here
+;; define other linkers here
+;; Useful info:
+;; http://www.drdobbs.com/architecture-and-design/simulating-small-world-networks/184405611
+;; https://compuzzle.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
+;; https://codepretty.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
@@ -154,7 +179,8 @@
   "Make a community with size number of indivs in it."
   [sim-state size]
   (let [indivs  (doall (repeatedly size #(make-indiv sim-state)))] ; it's short; don't wait for late-realization bugs.
-    (n-random-links-per-indiv! sim-state 3 indivs) ; TODO TEMPORARY
+    ;(link-all-indivs! sim-state 3 indivs) ; TODO TEMPORARY
+    (erdos-renyi-link-indivs! sim-state 3 indivs) ; TODO TEMPORARY
     (Community. indivs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -166,7 +192,8 @@
     :methods [[getNumCommunities [] long]
               [setNumCommunities [long] void]
               [getTargetIndivsPerCommunity [] long]
-              [setTargetIndivsPerCommunity [long] void]]
+              [setTargetIndivsPerCommunity [long] void]
+              [getLinkFns [] java.util.Collection]]
     :state instanceState
     :init init-instance-state
     :main true)
@@ -178,7 +205,8 @@
 (deftype InstanceState [numCommunities          ; number of communities
                         meanIndivsPerCommunity  ; mean or exact number of indivs in each
                         communities             ; holds the communities
-                        indivs])                ; holds all individuals
+                        indivs                  ; holds all individuals
+                        linkFns])               ; functions that can be used to link indivs
 
 (defn -init-instance-state
   "Initializes instance-state when an instance of class Sim is created."
@@ -186,13 +214,15 @@
   [[seed] (InstanceState. (atom initial-num-communities)
                           (atom initial-mean-indivs-per-community) 
                           (atom [])
-                          (atom []))])
+                          (atom [])
+                          [link-all-indivs! erdos-renyi-link-indivs!])])
 
 ;; Only used for (re-)initialization; no need to type hint:
 (defn -getNumCommunities [this] @(.numCommunities (.instanceState this)))
 (defn -setNumCommunities [this newval] (reset! (.numCommunities (.instanceState this))))
 (defn -getTargetIndivsPerCommunity [this] @(.meanIndivsPerCommunity (.instanceState this)))
 (defn -setTargetIndivsPerCommunity [this newval] (reset! (.meanIndivsPerCommunity (.instanceState this))))
+(defn -getLinkFns [this] (.linkFns this))
 
 (defn -main
   [& args]
