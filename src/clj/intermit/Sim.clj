@@ -10,16 +10,10 @@
 ;; Tip: Methods named "getBlahBlah" or "setBlahBlah" will be found by the UI via reflection.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; DEFAULTS AND UTILITY
+;; DEFAULTS AND UTILITY CODE
 
 (def initial-num-communities 10)
 (def initial-mean-indivs-per-community 10)
-
-(defn sample-with-repl
-  [rng num-samples coll]
-  (let [size (count coll)]
-    (for [_ (range num-samples)]
-      (nth coll (.nextInt rng size)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PROTOCOLS/INTERFACES
@@ -54,7 +48,7 @@
   Steppable
   (step [this sim-state] 
     (let [sim ^Sim sim-state] ; kludge to cast to my class--can't put it in signature
-      (println "My relig is" @relig ", my success is" @success ", and my neighbors are:\n" @neighbors)
+      (println @relig @success (count @neighbors))
     )))
 
 (import [intermit.Sim Indiv])
@@ -70,23 +64,31 @@
 (defn link-all-indivs!
   "Link each individual in individuals to every other."
   ([indivs]
-   (doseq [indiv indivs] (reset! (.neighbors indiv) indivs))
+   (let [indivs-set (set indivs)]
+     (doseq [indiv indivs]
+       (reset! (.neighbors indiv) (vec (disj indivs-set indiv)))))
    indivs)
   ([sim-state-ignored links-per-indiv-ignored indivs]
    (link-all-indivs! indivs)))
 
-(defn n-random-links-per-indiv!
-  "Give each indiv in individuals a randomly chosen links-per-indiv number
-  of links to others in individuals."
-  [sim-state links-per-indiv indivs]
-  (let [rng (.random sim-state)]
-    (println rng)
-    (doseq [indiv indivs]
-      (reset! (.neighbors indiv) 
-              (doall (sample-with-repl rng links-per-indiv indivs)))))
+;; TODO
+;; This isn't really what I want.
+;; It doesn't force all members of a community to be connected.
+(defn random-link-indivs!
+  "For each pair of indivs, with probability mean-links-per-indiv / indivs,
+  make them each others' neighbors."
+  [sim-state mean-links-per-indiv indivs]
+  (let [rng (.random sim-state)
+        num-indivs (count indivs)
+        mean (/ mean-links-per-indiv num-indivs)]
+    (doseq [i (range num-indivs)
+            j (range i)
+            :when (< (.nextDouble rng) mean)]
+      (swap! (.neighbors (nth indivs i)) conj (nth indivs j))
+      (swap! (.neighbors (nth indivs j)) conj (nth indivs i))))
   indivs)
 
-;; define other options here
+;; define other linkers here
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
@@ -104,7 +106,8 @@
   "Make a community with size number of indivs in it."
   [sim-state size]
   (let [indivs  (doall (repeatedly size #(make-indiv sim-state)))] ; it's short; don't wait for late-realization bugs.
-    (n-random-links-per-indiv! sim-state 3 indivs) ; TODO TEMPORARY
+    ;(link-all-indivs! sim-state 3 indivs) ; TODO TEMPORARY
+    (random-link-indivs! sim-state 3 indivs) ; TODO TEMPORARY
     (Community. indivs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
