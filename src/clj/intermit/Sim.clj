@@ -22,15 +22,19 @@
 ;; and allows a unified interface for finding out average culture of a community
 ;; cultural values of indivs, etc.
 
+;; This can be applied to communities as well as individuals.
 (defprotocol CulturedP
+  "Protocol for things that can have culture."
   (getRelig [this])             ;; UI-available methods
   (getSuccess [this])
   (update-success! [this])) ;; not available to UI
 
 (defprotocol CommunicatorP
+  "Protocol for things that can communicate culture."
   (copy-relig! [this]))
 
 (defprotocol CommunityP
+  "Protocol for communities."
   (getMembers [this]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -59,7 +63,7 @@
   (Indiv.
     (atom (.nextDouble (.random sim-state)))  ; relig
     (atom (.nextDouble (.random sim-state)))  ; success
-    (atom []))) ; TODO should this be an atom, so we can set it?  Or assoc it into a clone?  Can I do that with deftype?
+    (atom []))) ; An atom even though the links don't change after init: it's too hard to create relationships otherwise.
 
 (defn link-all-indivs!
   "Link each individual in individuals to every other."
