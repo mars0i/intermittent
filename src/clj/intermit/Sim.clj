@@ -70,22 +70,18 @@
   CommunicatorP
   (copy-relig! [this rng population]  
     (when-let [models @neighbors] ; TODO ADD RANDOM MEMBERS OF POPULATION
-      (swap! relig (comp (partial add-gaussian rng 0.2) ; TODO 0.2 is temporary--need to allow user to control this
+      (swap! relig (comp (partial add-gaussian rng 0.2) ; TODO 0.2 is temporary--allow user to control
                          choose-relig)  ; choose the best (accurately-perceived) relig value among neighbors, etc., and then noisily copy it.
              models)))
   Steppable
   (step [this sim-state] 
-    (let [sim ^intermit.Sim sim-state ; kludge to cast to my class--can't put it in signature
+    (let [sim sim-state ; kludge to cast to my class--can't put it in signature
           rng (.random sim)
           istate (.instanceState sim)
           population (.indivs istate)]
       (copy-relig! this rng population)
       ;(println @relig @success (count @neighbors)) ; DEBUG
     )))
-
-;; other versions for copy-relig:
-; #(reduce max %1 (map getRelig models))
-; #(reduce #(max %1 (getRelig %2)) models)
 
 (import [intermit.Sim Indiv])
 
@@ -169,6 +165,9 @@
                           (atom initial-mean-indivs-per-community) 
                           (atom [])
                           (atom []))])
+
+
+;(defn gitInstanceState ^intermit.Sim.InstanceState [^intermit.Sim this] (.instanceState this)) ; wrapper for the sake of type hinting, doesn't help, though.
 
 ;; Only used for (re-)initialization; no need to type hint:
 (defn -getNumCommunities [this] @(.numCommunities (.instanceState this)))
