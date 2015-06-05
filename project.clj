@@ -12,8 +12,7 @@
                    "resources/mason.18.jar"
                    "resources/portfolio.jar"]
 
-  :dependencies [[org.clojure/clojure "1.7.0-RC1"]
-                 [org.clojure/data.avl "0.0.12"]]
+  :dependencies [[org.clojure/clojure "1.7.0-RC1"]]
   :source-paths ["src/clj"]
   :main intermit.Sim
   :aot [intermit.Sim] 

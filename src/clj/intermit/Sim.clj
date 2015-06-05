@@ -22,23 +22,30 @@
 (def initial-num-communities 10)
 (def initial-mean-indivs-per-community 10)
 
-(defn sample-with-repl
-  [rng num-samples coll]
-  (let [size (count coll)]
-    (for [_ (range num-samples)]
-      (nth coll (.nextInt rng size)))))
+;(defn sample-with-repl
+;  [rng num-samples coll]
+;  (let [size (count coll)]
+;    (for [_ (range num-samples)]
+;      (nth coll (.nextInt rng size))))) ; don't use Clojure's rand-nth; it's based on java.util.Random.
 
+(defn remove-nth
+  "Returns a lazy sequence like coll, but with the nth item removed."
+  [coll n]
+  (concat (take n coll) (drop (inc n) coll)))
+
+;; This is a little bit simpler than the version in popco2's utils/random.clj, 
+;; which is based on Incanter code.  I make no claims that this is efficient.
+;; (Perhaps remove-nth above should be defined using subvec instead, maybe using transients.)
 (defn sample-without-repl
   [rng num-samples coll]
-  (letfn [(sample-it 
-          [num-samples-remaining set-remaining acc]
-            (if (= 0 num-samples-remaining)
+  (letfn [(sample-it [samples-remaining remaining acc]
+            (if (<= samples-remaining 0)
               acc
-              (let [new-sample (nth set-remaining (.nextInt rng (count set-remaining)))]
-                (recur (dec num-samples-remaining)
-                       (disj set-remaining new-sample)
-                       (conj acc new-sample)))))]
-    (sample-it num-samples (apply avl/sorted-set coll) [])))
+              (let [idx (.nextInt rng (count remaining))]
+                (recur (dec samples-remaining)
+                       (remove-nth remaining idx)
+                       (conj acc (nth remaining idx))))))]
+    (sample-it num-samples coll [])))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PROTOCOLS/INTERFACES
@@ -94,6 +101,7 @@
   ([sim-state-ignored links-per-indiv-ignored indivs]
    (link-all-indivs! indivs)))
 
+;; TODO NOT RIGHT.  This only provides one-way links.
 (defn n-random-links-per-indiv!
   "Give each indiv in individuals a randomly chosen links-per-indiv number
   of links to others in individuals."
