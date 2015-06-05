@@ -71,10 +71,10 @@
   ([sim-state-ignored links-per-indiv-ignored indivs]
    (link-all-indivs! indivs)))
 
-;; TODO
+;; Erdos-Renyi network linking (I think)
 ;; This isn't really what I want.
 ;; It doesn't force all members of a community to be connected.
-(defn random-link-indivs!
+(defn erdos-renyi-link-indivs!
   "For each pair of indivs, with probability mean-links-per-indiv / indivs,
   make them each others' neighbors."
   [sim-state mean-links-per-indiv indivs]
@@ -82,13 +82,17 @@
         num-indivs (count indivs)
         mean (/ mean-links-per-indiv num-indivs)]
     (doseq [i (range num-indivs)
-            j (range i)
+            j (range i)          ; lower triangle without diagonal
             :when (< (.nextDouble rng) mean)]
       (swap! (.neighbors (nth indivs i)) conj (nth indivs j))
       (swap! (.neighbors (nth indivs j)) conj (nth indivs i))))
   indivs)
 
 ;; define other linkers here
+;; Useful info:
+;; http://www.drdobbs.com/architecture-and-design/simulating-small-world-networks/184405611
+;; https://compuzzle.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
+;; https://codepretty.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
@@ -107,7 +111,7 @@
   [sim-state size]
   (let [indivs  (doall (repeatedly size #(make-indiv sim-state)))] ; it's short; don't wait for late-realization bugs.
     ;(link-all-indivs! sim-state 3 indivs) ; TODO TEMPORARY
-    (random-link-indivs! sim-state 3 indivs) ; TODO TEMPORARY
+    (erdos-renyi-link-indivs! sim-state 3 indivs) ; TODO TEMPORARY
     (Community. indivs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -119,7 +123,8 @@
     :methods [[getNumCommunities [] long]
               [setNumCommunities [long] void]
               [getTargetIndivsPerCommunity [] long]
-              [setTargetIndivsPerCommunity [long] void]]
+              [setTargetIndivsPerCommunity [long] void]
+              [getLinkFns [] java.util.Collection]]
     :state instanceState
     :init init-instance-state
     :main true)
@@ -131,7 +136,8 @@
 (deftype InstanceState [numCommunities          ; number of communities
                         meanIndivsPerCommunity  ; mean or exact number of indivs in each
                         communities             ; holds the communities
-                        indivs])                ; holds all individuals
+                        indivs                  ; holds all individuals
+                        linkFns])               ; functions that can be used to link indivs
 
 (defn -init-instance-state
   "Initializes instance-state when an instance of class Sim is created."
@@ -139,13 +145,15 @@
   [[seed] (InstanceState. (atom initial-num-communities)
                           (atom initial-mean-indivs-per-community) 
                           (atom [])
-                          (atom []))])
+                          (atom [])
+                          [link-all-indivs! erdos-renyi-link-indivs!])])
 
 ;; Only used for (re-)initialization; no need to type hint:
 (defn -getNumCommunities [this] @(.numCommunities (.instanceState this)))
 (defn -setNumCommunities [this newval] (reset! (.numCommunities (.instanceState this))))
 (defn -getTargetIndivsPerCommunity [this] @(.meanIndivsPerCommunity (.instanceState this)))
 (defn -setTargetIndivsPerCommunity [this newval] (reset! (.meanIndivsPerCommunity (.instanceState this))))
+(defn -getLinkFns [this] (.linkFns this))
 
 (defn -main
   [& args]
