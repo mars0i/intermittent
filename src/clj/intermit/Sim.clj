@@ -73,11 +73,10 @@
     (atom []))) ; An atom even though the links don't change after init: it's too hard to create relationships otherwise.
 
 ;; Erdos-Renyi network linking (I think)
-;; This isn't really what I want.
-;; It doesn't force all members of a community to be connected.
 (defn erdos-renyi-link-indivs!
   "For each pair of indivs, with probability mean-links-per-indiv / indivs,
-  make them each others' neighbors."
+  make them each others' neighbors.  Set the former to be equal to the latter
+  to link everything to everything."
   [sim-state mean-links-per-indiv indivs]
   (let [rng (.random sim-state)
         num-indivs (count indivs)
