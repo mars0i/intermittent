@@ -47,7 +47,14 @@
                        (conj acc (nth remaining idx))))))]
     (sample-it num-samples coll [])))
 
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sample-index-pairs-without-identicals
+  [rng prob supremum]
+  (for [i (range supremum)
+        j (range i) ; lower triangle without the diagonal (since "without identicals")
+        :when (< (.nextDouble rng) prob)]
+    [i j]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PROTOCOLS/INTERFACES
 
 ;; Separating these allows future versions in which e.g. communities can communicate,
@@ -102,6 +109,7 @@
    (link-all-indivs! indivs)))
 
 ;; TODO NOT RIGHT.  This only provides one-way links.
+;; REWRITE USING sample-index-pairs-without-identicals
 (defn n-random-links-per-indiv!
   "Give each indiv in individuals a randomly chosen links-per-indiv number
   of links to others in individuals."
