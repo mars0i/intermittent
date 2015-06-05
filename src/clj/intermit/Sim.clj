@@ -10,7 +10,7 @@
 ;; Tip: Methods named "getBlahBlah" or "setBlahBlah" will be found by the UI via reflection.
 
 ;; IN THIS VERSION:
-;; * There is a step function in each agent.
+;; * There is a step function in each agent, i.e. Indiv implements Steppable.
 ;; * The scheduler calls the agents' (indivs') step functions in random order on each timestep.
 ;; * Indivs update their states sequentially in this random order, rather than updating in
 ;;   parallel by updating a "new" version of a variable from others "old" versions.
@@ -48,6 +48,19 @@
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
 
+(defn choose-relig
+  "Given a relig value and a sequence of CulturedP's, compares the relig
+  value with the relig values of the CulturedP's, returning the largest one."
+  [my-relig others]
+  (reduce #(max %1 (getRelig %2))
+          my-relig others))
+
+(defn add-gaussian
+  "Given an random number generator rng, adds to value a random number
+  that's Normally distributed with mean zero and standard deviation stddev."
+  [^MersenneTwisterFast rng stddev value]
+  (+ (* stddev (.nextGaussian rng)) value))
+
 ;; TODO ADD ID
 (deftype Indiv [success relig neighbors] ; should neighbor relations be in the community instead? nah.
   CulturedP
@@ -57,8 +70,9 @@
   CommunicatorP
   (copy-relig! [this rng population]  
     (when-let [models @neighbors] ; TODO ADD RANDOM MEMBERS OF POPULATION
-      (reset! relig  ; TODO ADD NOISE
-              (apply max (map getRelig models))))) ; would reduce be faster?
+      (swap! relig (comp (partial add-gaussian rng 0.2) ; TODO 0.2 is temporary--need to allow user to control this
+                         choose-relig)  ; choose the best (accurately-perceived) relig value among neighbors, etc., and then noisily copy it.
+             models)))
   Steppable
   (step [this sim-state] 
     (let [sim ^intermit.Sim sim-state ; kludge to cast to my class--can't put it in signature
@@ -66,13 +80,12 @@
           istate (.instanceState sim)
           population (.indivs istate)]
       (copy-relig! this rng population)
-      (println @relig @success (count @neighbors))
+      ;(println @relig @success (count @neighbors)) ; DEBUG
     )))
 
-;; reduce version of the max function:
-;    (reset! relig (reduce #(max %1 (getRelig %2)) 
-;                          0.0 
-;                          neighbors)))
+;; other versions for copy-relig:
+; #(reduce max %1 (map getRelig models))
+; #(reduce #(max %1 (getRelig %2)) models)
 
 (import [intermit.Sim Indiv])
 
@@ -89,9 +102,8 @@
   "For each pair of indivs, with probability mean-links-per-indiv / indivs,
   make them each others' neighbors.  Set the former to be equal to the latter
   to link everything to everything."
-  [sim-state mean-links-per-indiv indivs]
-  (let [rng (.random sim-state)
-        num-indivs (count indivs)
+  [rng mean-links-per-indiv indivs]
+  (let [num-indivs (count indivs)
         mean (/ mean-links-per-indiv num-indivs)]
     (doseq [i (range num-indivs)
             j (range i)          ; lower triangle without diagonal
@@ -114,8 +126,8 @@
   CommunityP
   (getMembers [this] members)
   CulturedP
-  (getRelig [this] 0.5)    ; summary of members' values
-  (getSuccess [this] 0.5)) ; TODOsummary of members' values
+  (getRelig [this] 0.5)    ; TODO summary of members' values
+  (getSuccess [this] 0.5)) ; TODO summary of members' values
 
 (import [intermit.Sim Community])
 
@@ -123,7 +135,7 @@
   "Make a community with size number of indivs in it."
   [sim-state size]
   (let [indivs  (doall (repeatedly size #(make-indiv sim-state)))] ; it's short; don't wait for late-realization bugs.
-    (erdos-renyi-link-indivs! sim-state 3 indivs) ; TODO TEMPORARY
+    (erdos-renyi-link-indivs! (.random sim-state) 3 indivs) ; TODO TEMPORARY
     (Community. indivs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
