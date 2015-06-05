@@ -1,5 +1,4 @@
 (ns intermit.Sim
-  (require [clojure.data.avl :as avl])
   (:import ;[sim.field.continuous Continuous2D]
            ;[sim.field.network Network Edge]
            ;[sim.util Double2D MutableDouble2D Interval]
@@ -38,7 +37,7 @@
 
 (defprotocol CommunicatorP
   "Protocol for things that can communicate culture."
-  (copy-relig! [this]))
+  (copy-relig! [this rng population]))
 
 (defprotocol CommunityP
   "Protocol for communities."
@@ -49,18 +48,31 @@
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
 
+;; TODO ADD ID
 (deftype Indiv [success relig neighbors] ; should neighbor relations be in the community instead? nah.
   CulturedP
   (getRelig [this] @relig)
   (getSuccess [this] @success)
   (update-success! [this] "TODO") ; TODO
   CommunicatorP
-  (copy-relig! [this] "TODO") ; TODO
+  (copy-relig! [this rng population]  
+    (when-let [models @neighbors] ; TODO ADD RANDOM MEMBERS OF POPULATION
+      (reset! relig  ; TODO ADD NOISE
+              (apply max (map getRelig models))))) ; would reduce be faster?
   Steppable
   (step [this sim-state] 
-    (let [sim ^Sim sim-state] ; kludge to cast to my class--can't put it in signature
+    (let [sim ^intermit.Sim sim-state ; kludge to cast to my class--can't put it in signature
+          rng (.random sim)
+          istate (.instanceState sim)
+          population (.indivs istate)]
+      (copy-relig! this rng population)
       (println @relig @success (count @neighbors))
     )))
+
+;; reduce version of the max function:
+;    (reset! relig (reduce #(max %1 (getRelig %2)) 
+;                          0.0 
+;                          neighbors)))
 
 (import [intermit.Sim Indiv])
 
@@ -70,7 +82,7 @@
   (Indiv.
     (atom (.nextDouble (.random sim-state)))  ; relig
     (atom (.nextDouble (.random sim-state)))  ; success
-    (atom []))) ; An atom even though the links don't change after init: it's too hard to create relationships otherwise.
+    (atom nil))) ; falsey nil, atom for init process even though the links don't change
 
 ;; Erdos-Renyi network linking (I think)
 (defn erdos-renyi-link-indivs!
@@ -97,6 +109,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
 
+;; TODO ADD ID
 (deftype Community [members]
   CommunityP
   (getMembers [this] members)
