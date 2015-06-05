@@ -22,38 +22,6 @@
 (def initial-num-communities 10)
 (def initial-mean-indivs-per-community 10)
 
-;(defn sample-with-repl
-;  [rng num-samples coll]
-;  (let [size (count coll)]
-;    (for [_ (range num-samples)]
-;      (nth coll (.nextInt rng size))))) ; don't use Clojure's rand-nth; it's based on java.util.Random.
-
-(defn remove-nth
-  "Returns a lazy sequence like coll, but with the nth item removed."
-  [coll n]
-  (concat (take n coll) (drop (inc n) coll)))
-
-;; This is a little bit simpler than the version in popco2's utils/random.clj, 
-;; which is based on Incanter code.  I make no claims that this is efficient.
-;; (Perhaps remove-nth above should be defined using subvec instead, maybe using transients.)
-(defn sample-without-repl
-  [rng num-samples coll]
-  (letfn [(sample-it [samples-remaining remaining acc]
-            (if (<= samples-remaining 0)
-              acc
-              (let [idx (.nextInt rng (count remaining))]
-                (recur (dec samples-remaining)
-                       (remove-nth remaining idx)
-                       (conj acc (nth remaining idx))))))]
-    (sample-it num-samples coll [])))
-
-(defn sample-idx-pairs-wout-identicals
-  [rng prob supremum]
-  (for [i (range supremum)
-        j (range i) ; lower triangle without the diagonal (since "without identicals")
-        :when (< (.nextDouble rng) prob)]
-    [i j]))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PROTOCOLS/INTERFACES
 
@@ -104,42 +72,6 @@
     (atom (.nextDouble (.random sim-state)))  ; success
     (atom []))) ; An atom even though the links don't change after init: it's too hard to create relationships otherwise.
 
-(defn link-all-indivs!
-  "Link each individual in individuals to every other."
-  ([indivs]
-   (let [indivs-set (set indivs)]
-     (doseq [indiv indivs]
-       (reset! (.neighbors indiv) (vec (disj indivs-set indiv)))))
-   indivs)
-  ([sim-state-ignored links-per-indiv-ignored indivs]
-   (link-all-indivs! indivs)))
-
-;; TODO NOT RIGHT.  This only provides one-way links.
-;; REWRITE USING sample-index-pairs-without-identicals
-(defn bad-n-random-links-per-indiv!
-  "Give each indiv in individuals a randomly chosen links-per-indiv number
-  of links to others in individuals."
-  [sim-state links-per-indiv indivs]
-  (let [rng (.random sim-state)]
-    (doseq [indiv indivs]
-      (reset! (.neighbors indiv) 
-              (doall (sample-without-repl rng links-per-indiv indivs)))))
-  indivs)
-
-;; Does this really do what it says?
-(defn n-random-links-per-indiv!
-  "Give each indiv in indivs, a randomly chosen number of links to 
-  others is chosen, with mean number links-per-indiv."
-  [sim-state links-per-indiv indivs]
-  (let [rng (.random sim-state)
-        size (count indivs)
-        idx-pairs (sample-idx-pairs-wout-identicals rng 
-                                                    (/ links-per-indiv size) 
-                                                    size)]
-    (doseq [[i j] idx-pairs]
-      (swap! (.neighbors (nth indivs i)) conj (nth indivs j))
-      (swap! (.neighbors (nth indivs j)) conj (nth indivs i)))))
-
 ;; Erdos-Renyi network linking (I think)
 ;; This isn't really what I want.
 ;; It doesn't force all members of a community to be connected.
@@ -179,7 +111,6 @@
   "Make a community with size number of indivs in it."
   [sim-state size]
   (let [indivs  (doall (repeatedly size #(make-indiv sim-state)))] ; it's short; don't wait for late-realization bugs.
-    ;(link-all-indivs! sim-state 3 indivs) ; TODO TEMPORARY
     (erdos-renyi-link-indivs! sim-state 3 indivs) ; TODO TEMPORARY
     (Community. indivs)))
 
@@ -205,8 +136,7 @@
 (deftype InstanceState [numCommunities          ; number of communities
                         meanIndivsPerCommunity  ; mean or exact number of indivs in each
                         communities             ; holds the communities
-                        indivs                  ; holds all individuals
-                        linkFns])               ; functions that can be used to link indivs
+                        indivs])                  ; holds all individuals
 
 (defn -init-instance-state
   "Initializes instance-state when an instance of class Sim is created."
@@ -214,8 +144,7 @@
   [[seed] (InstanceState. (atom initial-num-communities)
                           (atom initial-mean-indivs-per-community) 
                           (atom [])
-                          (atom [])
-                          [link-all-indivs! erdos-renyi-link-indivs!])])
+                          (atom []))])
 
 ;; Only used for (re-)initialization; no need to type hint:
 (defn -getNumCommunities [this] @(.numCommunities (.instanceState this)))
