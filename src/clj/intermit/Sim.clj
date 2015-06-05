@@ -1,4 +1,5 @@
 (ns intermit.Sim
+  (require [clojure.data.avl :as avl])
   (:import ;[sim.field.continuous Continuous2D]
            ;[sim.field.network Network Edge]
            ;[sim.util Double2D MutableDouble2D Interval]
@@ -8,6 +9,12 @@
 ;(set! *warn-on-reflection* true)
 
 ;; Tip: Methods named "getBlahBlah" or "setBlahBlah" will be found by the UI via reflection.
+
+;; IN THIS VERSION:
+;; * There is a step function in each agent.
+;; * The scheduler calls the agents' (indivs') step functions in random order on each timestep.
+;; * Indivs update their states sequentially in this random order, rather than updating in
+;;   parallel by updating a "new" version of a variable from others "old" versions.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; DEFAULTS AND UTILITY
@@ -21,7 +28,19 @@
     (for [_ (range num-samples)]
       (nth coll (.nextInt rng size)))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sample-without-repl
+  [rng num-samples coll]
+  (letfn [(sample-it 
+          [num-samples-remaining set-remaining acc]
+            (if (= 0 num-samples-remaining)
+              acc
+              (let [new-sample (nth set-remaining (.nextInt rng (count set-remaining)))]
+                (recur (dec num-samples-remaining)
+                       (disj set-remaining new-sample)
+                       (conj acc new-sample)))))]
+    (sample-it num-samples (apply avl/sorted-set coll) [])))
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PROTOCOLS/INTERFACES
 
 ;; Separating these allows future versions in which e.g. communities can communicate,
@@ -83,7 +102,7 @@
     (println rng)
     (doseq [indiv indivs]
       (reset! (.neighbors indiv) 
-              (doall (sample-with-repl rng links-per-indiv indivs)))))
+              (doall (sample-without-repl rng links-per-indiv indivs)))))
   indivs)
 
 ;; define other options here
