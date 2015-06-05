@@ -47,7 +47,7 @@
                        (conj acc (nth remaining idx))))))]
     (sample-it num-samples coll [])))
 
-(defn sample-index-pairs-without-identicals
+(defn sample-idx-pairs-wout-identicals
   [rng prob supremum]
   (for [i (range supremum)
         j (range i) ; lower triangle without the diagonal (since "without identicals")
@@ -110,16 +110,31 @@
 
 ;; TODO NOT RIGHT.  This only provides one-way links.
 ;; REWRITE USING sample-index-pairs-without-identicals
+;(defn n-random-links-per-indiv!
+;  "Give each indiv in individuals a randomly chosen links-per-indiv number
+;  of links to others in individuals."
+;  [sim-state links-per-indiv indivs]
+;  (let [rng (.random sim-state)]
+;    (doseq [indiv indivs]
+;      (reset! (.neighbors indiv) 
+;              (doall (sample-without-repl rng links-per-indiv indivs)))))
+;  indivs)
+
+;; Does this really do what it says?
 (defn n-random-links-per-indiv!
-  "Give each indiv in individuals a randomly chosen links-per-indiv number
-  of links to others in individuals."
+  "Give each indiv in indivs, a randomly chosen number of links to 
+  others is chosen, with mean number links-per-indiv."
   [sim-state links-per-indiv indivs]
-  (let [rng (.random sim-state)]
-    (println rng)
-    (doseq [indiv indivs]
-      (reset! (.neighbors indiv) 
-              (doall (sample-without-repl rng links-per-indiv indivs)))))
-  indivs)
+  (let [rng (.random sim-state)
+        size (count indivs)
+        idx-pairs (sample-idx-pairs-wout-identicals rng 
+                                                    (/ links-per-indiv size) 
+                                                    size)]
+    (doseq [[i j] idx-pairs]
+      (swap! (.neighbors (nth indivs i)) conj (nth indivs j))
+      (swap! (.neighbors (nth indivs j)) conj (nth indivs i)))))
+
+
 
 ;; define other options here
 
