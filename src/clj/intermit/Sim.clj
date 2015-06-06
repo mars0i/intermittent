@@ -1,21 +1,44 @@
-(ns intermit.Sim
-  (:import ;[sim.field.continuous Continuous2D]
-           ;[sim.field.network Network Edge]
-           ;[sim.util Double2D MutableDouble2D Interval]
-           [intermit.Sim InstanceState]
-           [sim.engine Steppable Schedule]
-           [sim.util.distribution Poisson]
-           [ec.util MersenneTwisterFast]))
-
-;(set! *warn-on-reflection* true)
-
-;; Tip: Methods named "getBlahBlah" or "setBlahBlah" will be found by the UI via reflection.
+;;; This software is copyright 2015 by Marshall Abrams, and
+;;; is distributed under the Gnu General Public License version 3.0 as
+;;; specified in the file LICENSE.
 
 ;; IN THIS VERSION:
 ;; * There is a step function in each agent, i.e. Indiv implements Steppable.
 ;; * The scheduler calls the agents' (indivs') step functions in random order on each timestep.
 ;; * Indivs update their states sequentially in this random order, rather than updating in
 ;;   parallel by updating a "new" version of a variable from others "old" versions.
+
+;; Tip: Methods named "getBlahBlah" or "setBlahBlah" will be found by the UI via reflection.
+
+
+;(set! *warn-on-reflection* true)
+
+;; Put gen-class Sim first so we can type-hint methods in Indiv etc.
+;; But put intermit.Sim's methods at end, so we can type-hint references to Indiv, etc. in them.
+
+(ns intermit.Sim
+  (:import ;[sim.field.continuous Continuous2D]
+           ;[sim.field.network Network Edge]
+           ;[sim.util Double2D MutableDouble2D Interval]
+           [sim.engine Steppable Schedule]
+           [sim.util.distribution Poisson]
+           [ec.util MersenneTwisterFast])
+  (:gen-class :name intermit.Sim
+              :extends sim.engine.SimState                         ; includes signature for the start() method
+              :exposes-methods {start superStart}                  ; alias method start() in superclass. (Don't name it 'super-start'; use a Java name.)
+              :methods [[getNumCommunities [] long]                ; these methods are defined much further down
+                        [setNumCommunities [long] void]
+                        [getTargetIndivsPerCommunity [] long]
+                        [setTargetIndivsPerCommunity [long] void]
+                        [getLinkProb [] double]
+                        [setLinkProb [double] void]
+                        [getNoiseStddev [] double]
+                        [setNoiseStddev [double] void]
+                        [getPoissonMean [] double]
+                        [setPoissonMean [double] void]]
+              :state instanceState
+              :init init-instance-state
+              :main true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; DEFAULTS AND UTILITY CODE
@@ -47,6 +70,21 @@
 (defprotocol CommunityP
   "Protocol for communities."
   (getMembers [this]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; INSTANCESTATE
+;; Used to hold mutable data in Sim's instanceState variable
+;; Need def here so we can type-hint Indiv's methods
+
+;; Note some of these have to be atoms so that that we can allow restarting with a different setup.
+(deftype InstanceState [numCommunities          ; number of communities
+                        meanIndivsPerCommunity  ; mean or exact number of indivs in each
+                        linkProb
+                        noiseStddev
+                        poissonMean
+                        communities             ; holds the communities
+                        indivs                  ; holds all individuals
+                        poisson])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; INDIV: class for individuals who communicate with each other.
@@ -151,30 +189,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sim: class for overall system
 
-(gen-class :name intermit.Sim
-    :extends sim.engine.SimState  ; includes signature for the start() method
-    :exposes-methods {start superStart} ; alias method start() in superclass. (Don't name it 'super-start'; use a Java name.)
-    :methods [[getNumCommunities [] long]
-              [setNumCommunities [long] void]
-              [getTargetIndivsPerCommunity [] long]
-              [setTargetIndivsPerCommunity [long] void]
-              [getLinkFns [] java.util.Collection]]
-    :state instanceState
-    :init init-instance-state
-    :main true)
-
 
 ;; TODO: How can I allow user to choose the link function?
-
-;; Note some of these have to be atoms so that that we can allow restarting with a different setup.
-(deftype InstanceState [numCommunities          ; number of communities
-                        meanIndivsPerCommunity  ; mean or exact number of indivs in each
-                        linkProb
-                        noiseStddev
-                        poissonMean
-                        communities             ; holds the communities
-                        indivs                  ; holds all individuals
-                        poisson])
 
 (defn -init-instance-state
   "Initializes instance-state when an instance of class Sim is created."
