@@ -55,11 +55,13 @@
   (reduce #(max %1 (getRelig %2))
           my-relig others))
 
-(defn add-gaussian
-  "Given an random number generator rng, adds to value a random number
-  that's Normally distributed with mean zero and standard deviation stddev."
-  [^MersenneTwisterFast rng stddev value]
-  (+ (* stddev (.nextGaussian rng)) value))
+(defn copy-best-relig
+  "Choose the best, accurately perceived relig value of others if better than
+  my-relig, add Normally distributed noise (with mean zero and standard deviation
+  stddev) to the result, and return the sum."
+  [^MersenneTwisterFast rng stddev my-relig others]
+  (+ (* stddev (.nextGaussian rng))
+     (choose-relig my-relig others)))
 
 ;; TODO ADD ID
 (deftype Indiv [success relig neighbors] ; should neighbor relations be in the community instead? nah.
@@ -70,8 +72,7 @@
   CommunicatorP
   (copy-relig! [this rng population]  
     (when-let [models @neighbors] ; TODO ADD RANDOM MEMBERS OF POPULATION
-      (swap! relig (comp (partial add-gaussian rng 0.2) ; TODO 0.2 is temporary--allow user to control
-                         choose-relig)  ; choose the best (accurately-perceived) relig value among neighbors, etc., and then noisily copy it.
+      (swap! relig (partial copy-best-relig rng 0.2) ; TODO 0.2 is temporary--allow user to control
              models)))
   Steppable
   (step [this sim-state] 
