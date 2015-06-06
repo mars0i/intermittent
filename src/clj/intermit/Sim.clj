@@ -2,7 +2,9 @@
   (:import ;[sim.field.continuous Continuous2D]
            ;[sim.field.network Network Edge]
            ;[sim.util Double2D MutableDouble2D Interval]
+           [intermit.Sim InstanceState]
            [sim.engine Steppable Schedule]
+           [sim.util.distribution Poisson]
            [ec.util MersenneTwisterFast]))
 
 ;(set! *warn-on-reflection* true)
@@ -20,6 +22,9 @@
 
 (def initial-num-communities 10)
 (def initial-mean-indivs-per-community 10)
+(def initial-link-prob 0.3)
+(def initial-noise-stddev 0.2)
+(def initial-poisson-mean 1)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PROTOCOLS/INTERFACES
@@ -37,7 +42,7 @@
 
 (defprotocol CommunicatorP
   "Protocol for things that can communicate culture."
-  (copy-relig! [this rng population]))
+  (copy-relig! [this sim population]))
 
 (defprotocol CommunityP
   "Protocol for communities."
@@ -63,6 +68,11 @@
   (+ (* stddev (.nextGaussian rng))
      (choose-relig my-relig others)))
 
+;; TODO NOT RIGHT
+(defn choose-non-neighbors
+  [^Poisson poisson population]
+  [(nth population (.nextInt poisson))])
+
 ;; TODO ADD ID
 (deftype Indiv [success relig neighbors] ; should neighbor relations be in the community instead? nah.
   CulturedP
@@ -70,19 +80,22 @@
   (getSuccess [this] @success)
   (update-success! [this] "TODO") ; TODO
   CommunicatorP
-  (copy-relig! [this rng population]  
-    (when-let [models @neighbors] ; TODO ADD RANDOM MEMBERS OF POPULATION
-      (swap! relig (partial copy-best-relig rng 0.2) ; TODO 0.2 is temporary--allow user to control
-             models)))
+  (copy-relig! [this sim-state population]
+    (let [^intermit.Sim sim sim-state
+          ^intermit.Sim.InstanceState istate (.instanceState sim)]
+      (when-let [models (concat @neighbors
+                                (choose-non-neighbors @(.poisson istate) population))]
+        (swap! relig (partial copy-best-relig (.random sim) @(.noiseStddev istate))
+               models))))
   Steppable
   (step [this sim-state] 
-    (let [sim sim-state ; kludge to cast to my class--can't put it in signature
+    (let [^intermit.Sim sim sim-state ; kludge to cast to my class--can't put it in signature
           rng (.random sim)
-          istate (.instanceState sim)
-          population (.indivs istate)]
-      (copy-relig! this rng population)
+          ^intermit.Sim.InstanceState istate (.instanceState sim)
+          population @(.indivs istate)]
+      (copy-relig! this sim population)
       ;(println @relig @success (count @neighbors)) ; DEBUG
-    )))
+      )))
 
 (import [intermit.Sim Indiv])
 
@@ -99,14 +112,12 @@
   "For each pair of indivs, with probability mean-links-per-indiv / indivs,
   make them each others' neighbors.  Set the former to be equal to the latter
   to link everything to everything."
-  [rng mean-links-per-indiv indivs]
-  (let [num-indivs (count indivs)
-        mean (/ mean-links-per-indiv num-indivs)]
-    (doseq [i (range num-indivs)
-            j (range i)          ; lower triangle without diagonal
-            :when (< (.nextDouble rng) mean)]
-      (swap! (.neighbors (nth indivs i)) conj (nth indivs j))
-      (swap! (.neighbors (nth indivs j)) conj (nth indivs i))))
+  [rng prob indivs]
+  (doseq [i (range (count indivs))
+          j (range i)          ; lower triangle without diagonal
+          :when (< (.nextDouble rng) prob)]
+    (swap! (.neighbors (nth indivs i)) conj (nth indivs j))
+    (swap! (.neighbors (nth indivs j)) conj (nth indivs i)))
   indivs)
 
 ;; define other linkers here
@@ -130,9 +141,9 @@
 
 (defn make-community-of-indivs
   "Make a community with size number of indivs in it."
-  [sim-state size]
-  (let [indivs  (doall (repeatedly size #(make-indiv sim-state)))] ; it's short; don't wait for late-realization bugs.
-    (erdos-renyi-link-indivs! (.random sim-state) 3 indivs) ; TODO TEMPORARY
+  [sim size]
+  (let [indivs  (doall (repeatedly size #(make-indiv sim)))] ; it's short; don't wait for late-realization bugs.
+    (erdos-renyi-link-indivs! (.random sim) @(.linkProb (.instanceState sim)) indivs) 
     (Community. indivs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -156,16 +167,24 @@
 ;; Note some of these have to be atoms so that that we can allow restarting with a different setup.
 (deftype InstanceState [numCommunities          ; number of communities
                         meanIndivsPerCommunity  ; mean or exact number of indivs in each
+                        linkProb
+                        noiseStddev
+                        poissonMean
                         communities             ; holds the communities
-                        indivs])                  ; holds all individuals
+                        indivs                  ; holds all individuals
+                        poisson])
 
 (defn -init-instance-state
   "Initializes instance-state when an instance of class Sim is created."
   [seed]
   [[seed] (InstanceState. (atom initial-num-communities)
                           (atom initial-mean-indivs-per-community) 
-                          (atom [])
-                          (atom []))])
+                          (atom initial-link-prob)
+                          (atom initial-noise-stddev)
+                          (atom initial-poisson-mean)
+                          (atom nil)
+                          (atom nil)
+                          (atom nil))])
 
 
 ;(defn gitInstanceState ^intermit.Sim.InstanceState [^intermit.Sim this] (.instanceState this)) ; wrapper for the sake of type hinting, doesn't help, though.
@@ -175,7 +194,12 @@
 (defn -setNumCommunities [this newval] (reset! (.numCommunities (.instanceState this))))
 (defn -getTargetIndivsPerCommunity [this] @(.meanIndivsPerCommunity (.instanceState this)))
 (defn -setTargetIndivsPerCommunity [this newval] (reset! (.meanIndivsPerCommunity (.instanceState this))))
-(defn -getLinkFns [this] (.linkFns this))
+(defn -getLinkProb [this] @(.linkProb (.instanceState this)))
+(defn -setLinkProb [this newval] (reset! (.linkProb (.instanceState this))))
+(defn -getNoiseStddev [this] @(.noiseStddev (.instanceState this)))
+(defn -setNoiseStddev [this newval] (reset! (.noiseStddev (.instanceState this))))
+(defn -getPoissonMean [this] @(.poissonMean (.instanceState this)))
+(defn -setPoissonMean [this newval] (reset! (.poissonMean (.instanceState this))))
 
 (defn -main
   [& args]
@@ -196,6 +220,7 @@
         communities (doall (repeatedly num-communities
                                        #(make-community-of-indivs this indivs-per-community)))
         indivs (doall (mapcat getMembers communities))]
+    (reset! (.poisson instance-state) (Poisson. @(.poissonMean instance-state) (.random this)))
     (reset! (.communities instance-state) communities)
     (reset! (.indivs instance-state) indivs)
     (doseq [indiv indivs] (.scheduleRepeating schedule indiv))))
