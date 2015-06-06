@@ -73,8 +73,7 @@
   [^Poisson poisson population]
   [(nth population (.nextInt poisson))])
 
-;; TODO ADD ID
-(deftype Indiv [success relig neighbors] ; should neighbor relations be in the community instead? nah.
+(deftype Indiv [id success relig neighbors] ; should neighbor relations be in the community instead? nah.
   CulturedP
   (getRelig [this] @relig)
   (getSuccess [this] @success)
@@ -93,19 +92,20 @@
           rng (.random sim)
           ^intermit.Sim.InstanceState istate (.instanceState sim)
           population @(.indivs istate)]
-      (copy-relig! this sim population)
-      ;(println @relig @success (count @neighbors)) ; DEBUG
-      )))
+      (copy-relig! this sim population)))
+  Object
+  (toString [this] (str id ": " @relig " " @success " " (vec (map #(.id %) @neighbors)))))
 
 (import [intermit.Sim Indiv])
 
 (defn make-indiv
-  "Make an indiv with appropriate defaults values."
+  "Make an indiv with appropriate defaults."
   [sim-state]
   (Indiv.
+    (str (gensym "indiv"))
     (atom (.nextDouble (.random sim-state)))  ; relig
     (atom (.nextDouble (.random sim-state)))  ; success
-    (atom nil))) ; falsey nil, atom for init process even though the links don't change
+    (atom nil))) ; a falsey nil.  Need atom for inititialization stages, though won't change after that.
 
 ;; Erdos-Renyi network linking (I think)
 (defn erdos-renyi-link-indivs!
@@ -120,7 +120,7 @@
     (swap! (.neighbors (nth indivs j)) conj (nth indivs i)))
   indivs)
 
-;; define other linkers here
+;; poss define other linkers here
 ;; Useful info:
 ;; http://www.drdobbs.com/architecture-and-design/simulating-small-world-networks/184405611
 ;; https://compuzzle.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
@@ -130,12 +130,14 @@
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
 
 ;; TODO ADD ID
-(deftype Community [members]
+(deftype Community [id members]
   CommunityP
   (getMembers [this] members)
   CulturedP
   (getRelig [this] 0.5)    ; TODO summary of members' values
-  (getSuccess [this] 0.5)) ; TODO summary of members' values
+  (getSuccess [this] 0.5) ; TODO summary of members' values
+  Object
+  (toString [this] (str id ": " (vec (map #(.id %) @members)))))
 
 (import [intermit.Sim Community])
 
@@ -144,7 +146,7 @@
   [sim size]
   (let [indivs  (doall (repeatedly size #(make-indiv sim)))] ; it's short; don't wait for late-realization bugs.
     (erdos-renyi-link-indivs! (.random sim) @(.linkProb (.instanceState sim)) indivs) 
-    (Community. indivs)))
+    (Community. (str (gensym "comm")) indivs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sim: class for overall system
