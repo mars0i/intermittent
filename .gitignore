@@ -10,10 +10,6 @@ pom.xml.asc
 .lein-plugins/
 .lein-failures
 .nrepl-port
-doc/classdocs.html
-doc/manual.pdf
-doc/classdocs.html
-doc/manual.pdf
-doc/classdocs.html
-doc/manual.podf
 .*.swp
+classdocs.html
+manual.pdf
