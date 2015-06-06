@@ -22,7 +22,10 @@
            ;[sim.util Double2D MutableDouble2D Interval]
            [sim.engine Steppable Schedule]
            [sim.util.distribution Poisson]
-           [ec.util MersenneTwisterFast])
+           [ec.util MersenneTwisterFast]
+           [java.lang String]
+           ;[clojure.lang PersistentVector]
+           [intermit Sim]) ; import rest of classes after each is defined
   (:gen-class :name intermit.Sim
               :extends sim.engine.SimState                         ; includes signature for the start() method
               :exposes-methods {start superStart}                  ; alias method start() in superclass. (Don't name it 'super-start'; use a Java name.)
@@ -48,6 +51,59 @@
 (def initial-link-prob 0.3)
 (def initial-noise-stddev 0.2)
 (def initial-poisson-mean 1)
+
+;(defn but-nth
+; "Returns a lazy sequence like coll, but with the nth item removed."
+;  [coll n]
+;  (concat (take n coll) (drop (inc n) coll)))
+
+(defn but-nth-vec
+  "Given a vector v, returns a vector that's the same except that
+  element idx of the original vector is absent."
+  [v ^long idx]
+  (into (subvec v 0 idx)
+        (subvec v (inc idx))))
+
+;; My ad-hoc version
+;; INCREDIBLY SLOW.  IS INCANTER VERSION FASTER?  WHAT OTHERS ARE AVAILABLE?
+;(defn sample-wout-repl
+;  "Given a random number generator, a number of samples, and a vector, returns
+;  a vector of num-samples random samples without replacement from vector."
+;  [^MersenneTwisterFast rng ^long num-samples v]
+;  (letfn [(sample-it [^long samples-remaining ^clojure.lang.PersistentVector remaining ^clojure.lang.PersistentVector acc]
+;            (if (<= samples-remaining 0)
+;              acc
+;              (let [idx (.nextInt rng (count remaining))]
+;                (recur (dec samples-remaining)
+;                       (but-nth-vec remaining idx)
+;                       (conj acc (nth remaining idx))))))]
+;    (sample-it num-samples v [])))
+
+
+;; TRY COLT VERSION cern.jet.random.sampling Class RandomSampler
+;; https://dst.lbl.gov/ACSSoftware/colt/api/cern/jet/random/sampling/RandomSampler.html
+
+;; Incanter-derived version
+;; Twice as fast as my ad-hoc version, but still very slow.
+;; DOES INCANTER HAVE A BETTER ONE NOW??
+(defn sample-wout-repl
+  "Derived from Incanter's algorithm from sample-uniform for sampling without replacement."
+  [^MersenneTwisterFast rng ^long num-samples v]
+  (let [size (count v)
+        max-idx size]
+    (cond
+      (= num-samples 1) (vector (nth v (.nextInt rng size)))  ; if only one element needed, don't bother with the "with replacement" algorithm
+      ;; Rather than creating subseqs of the original v, we create a seq of indices below,
+      ;; and then [in effect] map (partial nth v) through the indices to get the samples that correspond to them.
+      (< num-samples size) (mapv #(nth v %) 
+                                 (loop [samp-indices [] indices-set #{}]    ; loop to create the set of indices
+                                   (if (= (count samp-indices) num-samples) ; until we've collected the right number of indices
+                                     samp-indices
+                                     (let [i (.nextInt rng size)]             ; get a random index
+                                       (if (contains? indices-set i)      ; if we've already seen that index,
+                                         (recur samp-indices indices-set) ;  then try again
+                                         (recur (conj samp-indices i) (conj indices-set i))))))) ; otherwise add it to our indices
+      :else (throw (Exception. "num-samples can't be larger than (count v).")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PROTOCOLS/INTERFACES
@@ -83,8 +139,10 @@
                         noiseStddev
                         poissonMean
                         communities             ; holds the communities
-                        indivs                  ; holds all individuals
+                        population              ; holds all individuals
                         poisson])
+
+(import [intermit.Sim InstanceState])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; INDIV: class for individuals who communicate with each other.
@@ -106,31 +164,32 @@
   (+ (* stddev (.nextGaussian rng))
      (choose-relig my-relig others)))
 
-;; TODO NOT RIGHT
-(defn choose-non-neighbors
-  [^Poisson poisson population]
-  [(nth population (.nextInt poisson))])
+(defn choose-from-pop
+  [^MersenneTwisterFast rng ^Poisson poisson rest-of-pop]
+  (let [num-to-choose (.nextInt poisson)]
+    (sample-wout-repl rng num-to-choose rest-of-pop)))
 
-(deftype Indiv [id success relig neighbors] ; should neighbor relations be in the community instead? nah.
+(deftype Indiv [id success relig neighbors popIdx] ; should neighbor relations be in the community instead? nah.
   CulturedP
   (getRelig [this] @relig)
   (getSuccess [this] @success)
   (update-success! [this] "TODO") ; TODO
   CommunicatorP
   (copy-relig! [this sim-state population]
-    (let [^intermit.Sim sim sim-state
-          ^intermit.Sim.InstanceState istate (.instanceState sim)]
-      (when-let [models (concat @neighbors
-                                (choose-non-neighbors @(.poisson istate) population))]
-        (swap! relig (partial copy-best-relig (.random sim) @(.noiseStddev istate))
+    (let [^Sim sim sim-state
+          ^InstanceState istate (.instanceState sim)
+          ^MersenneTwister rng (.random sim)
+          ^Poisson poisson @(.poisson istate)
+          ^double noise-stddev @(.noiseStddev istate)]
+      (when-let [models (not-empty (into @neighbors
+                                         (choose-from-pop rng poisson (but-nth-vec population @popIdx))))]
+        (swap! relig (partial copy-best-relig rng noise-stddev)
                models))))
   Steppable
   (step [this sim-state] 
-    (let [^intermit.Sim sim sim-state ; kludge to cast to my class--can't put it in signature
-          rng (.random sim)
-          ^intermit.Sim.InstanceState istate (.instanceState sim)
-          population @(.indivs istate)]
-      (copy-relig! this sim population)))
+    (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
+          ^intermit.Sim.InstanceState istate (.instanceState sim)]
+      (copy-relig! this sim @(.population istate))))
   Object
   (toString [this] (str id ": " @relig " " @success " " (vec (map #(.id %) @neighbors)))))
 
@@ -143,7 +202,8 @@
     (str (gensym "indiv"))
     (atom (.nextDouble (.random sim-state)))  ; relig
     (atom (.nextDouble (.random sim-state)))  ; success
-    (atom nil))) ; a falsey nil.  Need atom for inititialization stages, though won't change after that.
+    (atom []) ;  Need atom for inititialization stages, though won't change after that.
+    (atom 0))) ; temp value
 
 ;; Erdos-Renyi network linking (I think)
 (defn erdos-renyi-link-indivs!
@@ -208,16 +268,18 @@
 ;(defn gitInstanceState ^intermit.Sim.InstanceState [^intermit.Sim this] (.instanceState this)) ; wrapper for the sake of type hinting, doesn't help, though.
 
 ;; Only used for (re-)initialization; no need to type hint:
-(defn -getNumCommunities [this] @(.numCommunities (.instanceState this)))
-(defn -setNumCommunities [this newval] (reset! (.numCommunities (.instanceState this))))
-(defn -getTargetIndivsPerCommunity [this] @(.meanIndivsPerCommunity (.instanceState this)))
-(defn -setTargetIndivsPerCommunity [this newval] (reset! (.meanIndivsPerCommunity (.instanceState this))))
-(defn -getLinkProb [this] @(.linkProb (.instanceState this)))
-(defn -setLinkProb [this newval] (reset! (.linkProb (.instanceState this))))
-(defn -getNoiseStddev [this] @(.noiseStddev (.instanceState this)))
-(defn -setNoiseStddev [this newval] (reset! (.noiseStddev (.instanceState this))))
-(defn -getPoissonMean [this] @(.poissonMean (.instanceState this)))
-(defn -setPoissonMean [this newval] (reset! (.poissonMean (.instanceState this))))
+(defn -getNumCommunities ^long [^Sim this] @(.numCommunities (.instanceState this)))
+(defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities (.instanceState this)) newval))
+(defn -getTargetIndivsPerCommunity ^long [^Sim this] @(.meanIndivsPerCommunity (.instanceState this)))
+(defn -setTargetIndivsPerCommunity [^Sim this ^long newval] (reset! (.meanIndivsPerCommunity (.instanceState this)) newval))
+(defn -getLinkProb ^double [^Sim this] @(.linkProb (.instanceState this)))
+(defn -setLinkProb [^Sim this ^double newval] (reset! (.linkProb (.instanceState this)) newval))
+(defn -getNoiseStddev ^double [^Sim this] @(.noiseStddev (.instanceState this)))
+(defn -setNoiseStddev [^Sim this ^double newval] (reset! (.noiseStddev (.instanceState this)) newval))
+(defn -getPoissonMean ^double [^Sim this] @(.poissonMean (.instanceState this)))
+(defn -setPoissonMean [^Sim this ^double newval] 
+  (reset! (.poissonMean (.instanceState this) newval)) ; store it so that UI can display its current value
+  (.setMean (.poisson (.instanceState this)) newval))  ; allows changing value during the middle of a run.
 
 (defn -main
   [& args]
@@ -235,10 +297,13 @@
         instance-state (.instanceState this)
         num-communities  @(.numCommunities instance-state)
         indivs-per-community @(.meanIndivsPerCommunity instance-state)
-        communities (doall (repeatedly num-communities
+        communities (vec (repeatedly num-communities
                                        #(make-community-of-indivs this indivs-per-community)))
-        indivs (doall (mapcat getMembers communities))]
+        population (vec (mapcat getMembers communities))]
     (reset! (.poisson instance-state) (Poisson. @(.poissonMean instance-state) (.random this)))
     (reset! (.communities instance-state) communities)
-    (reset! (.indivs instance-state) indivs)
-    (doseq [indiv indivs] (.scheduleRepeating schedule indiv))))
+    (reset! (.population instance-state) population)
+    (dotimes [idx (count population)]   ; need to store indexes in indivs
+      (let [indiv (nth population idx)] ;  so go old school
+        (reset! (.popIdx indiv) idx)
+        (.scheduleRepeating schedule indiv)))))
