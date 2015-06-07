@@ -53,15 +53,16 @@
 (def initial-noise-stddev 0.2)
 (def initial-poisson-mean 1)
 
-;; It's much faster to remove the originating Indiv from samples here
+;; It's much faster to remove the originating Indiv from samples here,
 ;; rather than removing it from the collection to be sampled, at least
 ;; for reasonably large populations.
 (defn sample-wout-repl-or-me
   "Special sample without replacement function:
-  Samples num-samples from coll coll without replacement, excluding anything
-  identical? to me.  Assumes that samples can be compared by identity.
-  Returns a vector or set; if you want something more specific, it's
-  the caller's responsibility."
+  Returns num-samples samples from coll without replacement, excluding 
+  items identical? to me.  Returns a vector or a set; if you want something
+  more specific, it's the caller's responsibility.  Should be fastest when
+  coll has fast index access (e.g. it's a vector) and when the elements hash
+  by identity (e.g. when defined by deftype rather than defrecord)."
   [^MersenneTwisterFast rng ^long num-samples me coll]
   (let [size (count coll)]
     (loop [sample-set #{}]
@@ -121,48 +122,61 @@
   "Given a relig value and a sequence of CulturedP's, compares the relig
   value with the relig values of the CulturedP's, returning the largest one."
   ^double
-  [^double my-relig others]
-  (reduce #(max %1 (getRelig %2)) my-relig others))
+  [me others]
+; for me and others, find the one with the best 
+ ) 
+;  (reduce #(max %1 (getRelig %2)) my-relig others))
 
-;; TODO THESE DEFS WRONG--S/B SUCCESS BIAS NOT HIGH RELIG BIAS
+(defn add-tran-noise
+ "Add Normal noise with stddev to relig, clipping to extrema 0.0 and 1.0."
+  ^double
+  [^MersenneTwisterFast rng ^double stddev ^double relig]
+  (max 0.0 (min 1.0 (+ (* stddev ^double (.nextGaussian rng))
+                       relig)))
+
 (defn copy-best-relig
   "Choose the best, accurately perceived relig value of others if better than
   my-relig, add Normally distributed noise (with mean zero and standard deviation
   stddev) to the result, and return the sum."
   ^double
-  [^MersenneTwisterFast rng ^double stddev ^double my-relig others]
-  (max 0.0 (min 1.0 (+ (* stddev ^double (.nextGaussian rng))
-                       (choose-relig my-relig others)))))
+  [^MersenneTwisterFast rng ^double stddev me others]
+  (add-tran-noise rng stddev (choose-relig me others)))
 
-(defn choose-other-from-pop
+(defn choose-others-from-pop
   [^MersenneTwisterFast rng ^Poisson poisson me population]
   (let [num-to-choose (.nextInt poisson)]
     (sample-wout-repl-or-me rng num-to-choose me population)))
 
 (deftype Indiv [id success relig neighbors popIdx] ; should neighbor relations be in the community instead? nah.
   CulturedP
-  (getRelig [this] @relig)
-  (getSuccess [this] @success)
-  (update-success! [this] "TODO") ; TODO
+    (getRelig [this] @relig)
+    (getSuccess [this] @success)
+    (update-success! [this]
+      (let [others @neighbors] ; success = mean relig of my neighbors and me
+        (reset! success (/ (reduce #(+ %1 (.relig %2))
+                                   relig
+                                   others)
+                           (inc (count others))))))
   CommunicatorP
-  (copy-relig! [this sim-state population]
-    (let [^Sim sim sim-state
-          ^InstanceState istate (.instanceState sim)
-          ^MersenneTwister rng (.random sim)
-          ^Poisson poisson @(.poisson istate)
-          ^double noise-stddev @(.noiseStddev istate)]
-      (when-let [models (not-empty (into @neighbors (choose-other-from-pop rng poisson this population)))]
-        (swap! relig (partial copy-best-relig rng noise-stddev)
-               models))))
+    (copy-relig![this sim-state population]
+      (let [^Sim sim sim-state
+            ^InstanceState istate (.instanceState sim)
+            ^MersenneTwister rng (.random sim)
+            ^Poisson poisson @(.poisson istate)
+            ^double noise-stddev @(.noiseStddev istate)]
+        (when-let [models (not-empty
+                            (into @neighbors
+                                  (choose-others-from-pop rng poisson this population)))]
+          (reset! relig (copy-best-relig rng noise-stddev me models))))) ; REPLACE
   Steppable
-  (step [this sim-state] 
-    (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
-          ^intermit.Sim.InstanceState istate (.instanceState sim)]
-      ;(println this) ; DEBUG
-      ;(print (if (< @(.relig this) 0.5) "-" "+")) ; DEBUG
-      (copy-relig! this sim @(.population istate))))
+    (step [this sim-state] 
+      (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
+            ^intermit.Sim.InstanceState istate (.instanceState sim)]
+        ;(println this) ; DEBUG
+        ;(print (if (< @(.relig this) 0.5) "-" "+")) ; DEBUG
+        (copy-relig! this sim @(.population istate))))
   Object
-  (toString [this] (str id ": " @relig " " @success " " (vec (map #(.id %) @neighbors)))))
+    (toString [this] (str id ": " @relig " " @success " " (vec (map #(.id %) @neighbors)))))
 
 (import [intermit.Sim Indiv])
 
