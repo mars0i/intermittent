@@ -17,6 +17,7 @@
 ;; But put intermit.Sim's methods at end, so we can type-hint references to Indiv, etc. in them.
 
 (ns intermit.Sim
+  (:require [intermit.utils :as u])
   (:import ;[sim.field.continuous Continuous2D]
            ;[sim.field.network Network Edge]
            ;[sim.util Double2D MutableDouble2D Interval]
@@ -52,58 +53,24 @@
 (def initial-noise-stddev 0.2)
 (def initial-poisson-mean 1)
 
-;(defn but-nth
-; "Returns a lazy sequence like coll, but with the nth item removed."
-;  [coll n]
-;  (concat (take n coll) (drop (inc n) coll)))
-
-(defn but-nth-vec
-  "Given a vector v, returns a vector that's the same except that
-  element idx of the original vector is absent."
-  [v ^long idx]
-  (into (subvec v 0 idx)
-        (subvec v (inc idx))))
-
-;; My ad-hoc version
-;; INCREDIBLY SLOW.  IS INCANTER VERSION FASTER?  WHAT OTHERS ARE AVAILABLE?
-;(defn sample-wout-repl
-;  "Given a random number generator, a number of samples, and a vector, returns
-;  a vector of num-samples random samples without replacement from vector."
-;  [^MersenneTwisterFast rng ^long num-samples v]
-;  (letfn [(sample-it [^long samples-remaining ^clojure.lang.PersistentVector remaining ^clojure.lang.PersistentVector acc]
-;            (if (<= samples-remaining 0)
-;              acc
-;              (let [idx (.nextInt rng (count remaining))]
-;                (recur (dec samples-remaining)
-;                       (but-nth-vec remaining idx)
-;                       (conj acc (nth remaining idx))))))]
-;    (sample-it num-samples v [])))
-
-
-;; TRY COLT VERSION cern.jet.random.sampling Class RandomSampler
-;; https://dst.lbl.gov/ACSSoftware/colt/api/cern/jet/random/sampling/RandomSampler.html
-
-;; Incanter-derived version
-;; Twice as fast as my ad-hoc version, but still very slow.
-;; DOES INCANTER HAVE A BETTER ONE NOW??
-(defn sample-wout-repl
-  "Derived from Incanter's algorithm from sample-uniform for sampling without replacement."
-  [^MersenneTwisterFast rng ^long num-samples v]
-  (let [size (count v)
-        max-idx size]
-    (cond
-      (= num-samples 1) (vector (nth v (.nextInt rng size)))  ; if only one element needed, don't bother with the "with replacement" algorithm
-      ;; Rather than creating subseqs of the original v, we create a seq of indices below,
-      ;; and then [in effect] map (partial nth v) through the indices to get the samples that correspond to them.
-      (< num-samples size) (mapv #(nth v %) 
-                                 (loop [samp-indices [] indices-set #{}]    ; loop to create the set of indices
-                                   (if (= (count samp-indices) num-samples) ; until we've collected the right number of indices
-                                     samp-indices
-                                     (let [i (.nextInt rng size)]             ; get a random index
-                                       (if (contains? indices-set i)      ; if we've already seen that index,
-                                         (recur samp-indices indices-set) ;  then try again
-                                         (recur (conj samp-indices i) (conj indices-set i))))))) ; otherwise add it to our indices
-      :else (throw (Exception. "num-samples can't be larger than (count v).")))))
+;; It's much faster to remove the originating Indiv from samples here
+;; rather than removing it from the collection to be sampled, at least
+;; for reasonably large populations.
+(defn sample-wout-repl-or-me
+  "Special sample without replacement function:
+  Samples num-samples from coll coll without replacement, excluding anything
+  identical? to me.  Assumes that samples can be compared by identity.
+  Returns a vector or set; if you want something more specific, it's
+  the caller's responsibility."
+  [^MersenneTwisterFast rng ^long num-samples me coll]
+  (let [size (count coll)]
+    (loop [sample-set #{}]
+      (if (= (count sample-set) num-samples)
+        sample-set
+        (let [sample (nth coll (.nextInt rng size))]
+          (if (identical? me sample) ; if it's the one we don't want,
+            (recur sample-set)       ; lose it
+            (recur (conj sample-set sample))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PROTOCOLS/INTERFACES
@@ -149,25 +116,28 @@
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
 
+;; TODO THESE DEFS WRONG--S/B SUCCESS BIAS NOT HIGH RELIG BIAS
 (defn choose-relig
   "Given a relig value and a sequence of CulturedP's, compares the relig
   value with the relig values of the CulturedP's, returning the largest one."
-  [my-relig others]
-  (reduce #(max %1 (getRelig %2))
-          my-relig others))
+  ^double
+  [^double my-relig others]
+  (reduce #(max %1 (getRelig %2)) my-relig others))
 
+;; TODO THESE DEFS WRONG--S/B SUCCESS BIAS NOT HIGH RELIG BIAS
 (defn copy-best-relig
   "Choose the best, accurately perceived relig value of others if better than
   my-relig, add Normally distributed noise (with mean zero and standard deviation
   stddev) to the result, and return the sum."
-  [^MersenneTwisterFast rng stddev my-relig others]
-  (+ (* stddev (.nextGaussian rng))
-     (choose-relig my-relig others)))
+  ^double
+  [^MersenneTwisterFast rng ^double stddev ^double my-relig others]
+  (max 0.0 (min 1.0 (+ (* stddev ^double (.nextGaussian rng))
+                       (choose-relig my-relig others)))))
 
-(defn choose-from-pop
-  [^MersenneTwisterFast rng ^Poisson poisson rest-of-pop]
+(defn choose-other-from-pop
+  [^MersenneTwisterFast rng ^Poisson poisson me population]
   (let [num-to-choose (.nextInt poisson)]
-    (sample-wout-repl rng num-to-choose rest-of-pop)))
+    (sample-wout-repl-or-me rng num-to-choose me population)))
 
 (deftype Indiv [id success relig neighbors popIdx] ; should neighbor relations be in the community instead? nah.
   CulturedP
@@ -181,14 +151,15 @@
           ^MersenneTwister rng (.random sim)
           ^Poisson poisson @(.poisson istate)
           ^double noise-stddev @(.noiseStddev istate)]
-      (when-let [models (not-empty (into @neighbors
-                                         (choose-from-pop rng poisson (but-nth-vec population @popIdx))))]
+      (when-let [models (not-empty (into @neighbors (choose-other-from-pop rng poisson this population)))]
         (swap! relig (partial copy-best-relig rng noise-stddev)
                models))))
   Steppable
   (step [this sim-state] 
     (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
           ^intermit.Sim.InstanceState istate (.instanceState sim)]
+      ;(println this) ; DEBUG
+      ;(print (if (< @(.relig this) 0.5) "-" "+")) ; DEBUG
       (copy-relig! this sim @(.population istate))))
   Object
   (toString [this] (str id ": " @relig " " @success " " (vec (map #(.id %) @neighbors)))))
