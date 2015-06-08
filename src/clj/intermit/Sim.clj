@@ -233,9 +233,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sim: class for overall system
 
-
-;; TODO: How can I allow user to choose the link function?
-
 (defn -init-instance-state
   "Initializes instance-state when an instance of class Sim is created."
   [seed]
@@ -247,9 +244,6 @@
                           (atom nil)
                           (atom nil)
                           (atom nil))])
-
-
-;(defn gitInstanceState ^intermit.Sim.InstanceState [^intermit.Sim this] (.instanceState this)) ; wrapper for the sake of type hinting, doesn't help, though.
 
 ;; Only used for (re-)initialization; no need to type hint:
 (defn -getNumCommunities ^long [^Sim this] @(.numCommunities (.instanceState this)))
