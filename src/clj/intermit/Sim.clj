@@ -96,16 +96,13 @@
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
 
-(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise sum-religs)
+(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise)
 
-(deftype Indiv [id success relig neighbors] ; should neighbor relations be in the community instead? nah.
+(deftype Indiv [id community success relig neighbors] ; should neighbor relations be in the community instead? nah.
   CulturedP
     (getRelig [this] @relig)
     (getSuccess [this] @success)
-    (update-success! [this]
-      (let [others @neighbors] ; success = mean relig of my neighbors and me
-        (reset! success (/ (reduce sum-religs @relig others) ; TODO REVISE SHOULD BE ENTIRE COMMUNITY
-                           (inc (count others))))))
+    (update-success! [this] (reset! success @(.success @community))) ; FIXME THIS IS A BOTTLENECK
   Steppable
     (step [this sim-state] 
       (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
@@ -113,8 +110,8 @@
         ;(println this) ; DEBUG
         ;(print (if (< @(.relig this) 0.5) "-" "+")) ; DEBUG
         ;(print (if (< @(.success this) 0.5) "-" "+")) ; DEBUG
-        (copy-relig! this sim @(.population istate))
-        (update-success! this)))
+        (update-success! this)
+        (copy-relig! this sim @(.population istate))))
   Object
     (toString [this] (str id ": " @success " " @relig " " (vec (map #(.id %) @neighbors)))))
 
@@ -132,10 +129,6 @@
                                            (choose-others-from-pop rng poisson this population)))]
         (when (> @(.success best-model) @(.success this))
           (reset! (.relig this) (add-tran-noise rng noise-stddev @(.relig best-model)))))))) 
-
-(defn sum-religs
-  ^double [^double prev-relig ^Indiv next-indiv]
-  (+ prev-relig @(.relig next-indiv)))
 
 ;; It's much faster to remove the originating Indiv from samples here,
 ;; rather than removing it from the collection to be sampled, at least
@@ -167,10 +160,13 @@
 (defn choose-most-successful
   "Given a collection of Indiv's, returns the one with the greatest success, or
   nil if the collection is empty."
-  [models]
+  ^Indiv [models]
   (letfn [(compare-success 
             ([] nil) ; what reduce does if collection is empty
-            ([^Indiv i1 ^Indiv i2] (if (> @(.success i1) @(.success i2)) i1 i2)))]
+            ([^Indiv i1 ^Indiv i2] (if (> ^double @(.success i1)
+                                          ^double @(.success i2))
+                                     i1
+                                     i2)))]
           (reduce compare-success models)))
 
 (defn add-tran-noise
@@ -184,10 +180,11 @@
   "Make an indiv with appropriate defaults."
   [sim-state]
   (Indiv.
-    (str (gensym "i"))
-    (atom (.nextDouble (.random sim-state)))  ; relig
+    (str (gensym "i")) ; id
+    (atom nil) ; community
     (atom (.nextDouble (.random sim-state)))  ; success
-    (atom []))) ;  Need atom for inititialization stages, though won't change after that.
+    (atom (.nextDouble (.random sim-state)))  ; relig
+    (atom []))) ;  neighbors (need atom for inititialization stages, though won't change after that)
 
 ;; Erdos-Renyi network linking (I think)
 (defn erdos-renyi-link-indivs!
@@ -211,10 +208,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
 
-(defn avg-success
+(defn avg-relig
+  "Calculates the average relig value of a collection of indivs."
   ^double [indivs]
   (let [size (count indivs)
-        add-success (fn [^double acc ^Indiv indiv] (+ acc @(.success indiv)))]
+        add-success (fn [^double acc ^Indiv indiv] (+ acc ^double @(.relig indiv)))]
     (if (= size 0)
       0.0
       (/ (reduce add-success 0.0 indivs) size))))
@@ -226,10 +224,9 @@
   CulturedP
     (getRelig [this] 0.5) ; FIXME
     (getSuccess [this] @success)
-    (update-success! [this] (reset! success (avg-success members)))
+    (update-success! [this] (reset! success (identity (avg-relig members)))) ; replace identity to get a different success mapping
   Steppable
     (step [this sim-state] 
-      (println this) ; DEBUG
       (update-success! this))
   Object
     (toString [this] (str id ": " @success " " (vec (map #(.id %) members)))))
@@ -297,4 +294,5 @@
     (doseq [indiv population]
       (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))            ; indivs run first
     (doseq [community communities]
+      (doseq [indiv (.members community)] (reset! (.community indiv) community)) ; give every indiv a pointer to its community
       (.scheduleRepeating schedule Schedule/EPOCH 1 community)))) ; then communities
