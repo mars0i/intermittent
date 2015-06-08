@@ -230,7 +230,6 @@
 
 ;;; Runtime functions:
 
-;; *NOT*E: Currently using this to define getRelig for Community.  Need to change that if this changes.
 (defn update-fields!
   "Set the success and relig fields of the community and the success field of
   each of its members to the value of avg-relig for the members."
