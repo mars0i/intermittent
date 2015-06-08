@@ -2,21 +2,20 @@
 ;;; is distributed under the Gnu General Public License version 3.0 as
 ;;; specified in the file LICENSE.
 
-;;; Clojure version of the StudentsWithUI class described in the tutorial in
-;;; chapter 2 of the Mason Manual v18, by Sean Luke.
-
-(ns students.StudentsWithUI
+(ns intermit.SimWithUI
+  ;; TODO REVISE THESE IMPORTS--PROBABLY NOT ALL NEEDED:
   (:import [sim.portrayal.continuous ContinuousPortrayal2D]
            [sim.portrayal.network NetworkPortrayal2D SpatialNetwork2D SimpleEdgePortrayal2D]
            [sim.portrayal.simple OvalPortrayal2D LabelledPortrayal2D CircledPortrayal2D MovablePortrayal2D]
            [sim.display Console Display2D]
            [java.awt Color])
   (:gen-class
-    :name students.StudentsWithUI
+    :name intermit.SimWithUI
     :extends sim.display.GUIState
     :main true
-    :exposes {state {:get getState}}  ; make accessors for fields in superclass
+    :exposes {state {:get getState}}  ; accessor for field in superclass
     :exposes-methods {start superStart, quit superQuit, init superInit, getInspector superGetInspector}
+    ;; WHICH OF THESE DO I NEED (if any)?:
     :methods [[getDisplay [] sim.display.Display2D]
               [setDisplay [sim.display.Display2D] void]
               [getDisplayFrame [] javax.swing.JFrame]
@@ -24,12 +23,9 @@
               [gitYardPortrayal [] sim.portrayal.continuous.ContinuousPortrayal2D]
               [gitBuddiesPortrayal [] sim.portrayal.network.NetworkPortrayal2D]
               [setupPortrayals [] void]]
-    :state instanceState         ; superclass already has a variable named "state"
-    :init init-instance-state))  ; we define a MASON function named "init" below
+    :state iState
+    :init init-instance-state))
 
-;; Supposed to have a no-arg constructor. not sure how this is supposed to work.  TODO ?
-;:constructors {[]                    [sim.engine.SimState] 
-;               [sim.engine.SimState] [sim.engine.SimState]}
 
 (defn -init-instance-state
   [& args]
@@ -38,12 +34,12 @@
                :yard-portrayal (ContinuousPortrayal2D.)
                :buddies-portrayal (NetworkPortrayal2D.)}])
 
-(defn -getDisplay [this] @(:display (.instanceState this)))
-(defn -setDisplay [this newval] (reset! (:display (.instanceState this)) newval))
-(defn -getDisplayFrame [this] @(:display-frame (.instanceState this)))
-(defn -setDisplayFrame [this newval] (reset! (:display-frame (.instanceState this)) newval))
-(defn -gitYardPortrayal [this] (:yard-portrayal (.instanceState this)))
-(defn -gitBuddiesPortrayal [this] (:buddies-portrayal (.instanceState this)))
+(defn -getDisplay [this] @(:display (.iState this)))
+(defn -setDisplay [this newval] (reset! (:display (.iState this)) newval))
+(defn -getDisplayFrame [this] @(:display-frame (.iState this)))
+(defn -setDisplayFrame [this newval] (reset! (:display-frame (.iState this)) newval))
+(defn -gitYardPortrayal [this] (:yard-portrayal (.iState this)))
+(defn -gitBuddiesPortrayal [this] (:buddies-portrayal (.iState this)))
 
 (defn -getSimulationInspectedObject [this] (.state this))
 
@@ -58,10 +54,8 @@
 
 (defn -main
   [& args]
-  (let [vid (students.StudentsWithUI.
-              (students.Students. (System/currentTimeMillis)))] ; don't yet know how to define no-arg constructor; this works.
+  (let [vid (intermit.SimWithUI. (intermit.Sim. (System/currentTimeMillis)))]
     (.setVisible (Console. vid) true)))
-
 
 (defn -getName [this] "Student Schoolyard Cliques") ; override method in super
 
@@ -70,10 +64,9 @@
   (.superStart this)
   (.setupPortrayals this))
 
-
 (defn -setupPortrayals
   [this]
-  (let [students (.getState this)
+  (let [sim (.getState this)
         yard-portrayal (.gitYardPortrayal this)
         buddies-portrayal (.gitBuddiesPortrayal this)
         display (.getDisplay this)
@@ -85,14 +78,14 @@
                                            (Color. agitation-shade 0 (- 255 agitation-shade)))
                                      (proxy-super draw student graphics info))))]
     (doto yard-portrayal 
-      (.setField (.gitYard students))
+      (.setField (.gitYard sim))
       (.setPortrayalForAll 
         (-> extended-oval-portayal 
           (LabelledPortrayal2D. 5.0 nil Color/black true)
           (CircledPortrayal2D. 0 5.0 Color/green true)
           (MovablePortrayal2D.))))
     (doto buddies-portrayal
-      (.setField (SpatialNetwork2D. (.gitYard students) (.gitBuddies students)))
+      (.setField (SpatialNetwork2D. (.gitYard sim) (.gitBuddies sim)))
       (.setPortrayalForAll (SimpleEdgePortrayal2D.)))
     (doto display
       (.reset )
@@ -100,12 +93,7 @@
       (.repaint))))
 
 
-;; Note I reorganized the order of operations in this function
-;; to put all of the display ops together, and all of the display-frame 
-;; ops together, after creating both display and display-frame in the same 
-;; let.  This seems to work, and seems to make sense.  e.g. original version
-;; set clipping on display before creating frame.  As far as I can tell 
-;; (e.g. from DisplayFrame2D source), this shouldn't matter.
+;; UI method--not for initializing the gen-class state.
 (defn -init
   [this controller] ; controller is called c in Java version
   (.superInit this controller)
