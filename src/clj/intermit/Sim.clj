@@ -44,7 +44,7 @@
               :main true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; DEFAULTS AND UTILITY CODE
+;; DEFAULTS AND GENERAL UTILITY CODE
 
 (def initial-num-communities 10)
 (def initial-mean-indivs-per-community 10)
@@ -65,6 +65,7 @@
   (getRelig [this])             ;; UI-available methods
   (getSuccess [this]))
 
+;; Q: Why is this in a protocol?  A: So that communities can do it to, if desired.
 (defprotocol CommunicatorP
   "Protocol for things that can communicate culture."
   (copy-relig! [this sim population]))
@@ -97,7 +98,8 @@
 
 (declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise)
 
-(deftype Indiv [id success relig neighbors] ; should neighbor relations be in the community instead? nah.
+(deftype Indiv [id success relig neighbors]
+  ;; CommunicatorP methods moved to extend-protocol to allow type-hinting with ^Indiv
   CulturedP
     (getRelig [this] @relig)
     (getSuccess [this] @success)
@@ -114,6 +116,8 @@
 
 (import [intermit.Sim Indiv])
 
+;; CommunicatorP methods on Indiv moved to here to allow type-hinting with ^Indiv
+;; (Faster than putting the type hints into a function embedded in a swap! call)
 (extend-protocol CommunicatorP
   Indiv
   (copy-relig! [this ^Sim sim population]
@@ -126,6 +130,9 @@
                                            (choose-others-from-pop rng poisson this population)))]
         (when (> @(.success best-model) @(.success this))
           (reset! (.relig this) (add-tran-noise rng noise-stddev @(.relig best-model)))))))) 
+
+
+;;; Runtime functions:
 
 ;; It's much faster to remove the originating Indiv from samples here,
 ;; rather than removing it from the collection to be sampled, at least
@@ -148,10 +155,12 @@
             (recur (conj sample-set sample))))))))
 
 (defn choose-others-from-pop
+  "Randomly sample a Poisson-distributed number of indivs from population,
+  excluding me.  (The mean for the Poisson distribution is stored in the
+  poisson object.)"
   [^MersenneTwisterFast rng ^Poisson poisson me population]
   (let [num-to-choose (.nextInt poisson)]
     (sample-wout-repl-or-me rng num-to-choose me population)))
-
 
 ;; Can I avoid repeated accesses to the same field, caching them?  Does it matter?
 (defn choose-most-successful
@@ -168,10 +177,11 @@
 
 (defn add-tran-noise
  "Add Normal noise with stddev to relig, clipping to extrema 0.0 and 1.0."
-  ^double
-  [^MersenneTwisterFast rng ^double stddev ^double relig]
+  ^double [^MersenneTwisterFast rng ^double stddev ^double relig]
   (max 0.0 (min 1.0 (+ (* stddev ^double (.nextGaussian rng))))))
 
+
+;;; Initialization functions:
 
 (defn make-indiv
   "Make an indiv with appropriate defaults."
@@ -184,9 +194,8 @@
 
 ;; Erdos-Renyi network linking (I think)
 (defn erdos-renyi-link-indivs!
-  "For each pair of indivs, with probability mean-links-per-indiv / indivs,
-  make them each others' neighbors.  Set the former to be equal to the latter
-  to link everything to everything."
+  "For each pair of indivs, with probability prob, make them each others' neighbors.
+  (Set prob to 1 to link all indivs to each other.)"
   [rng prob indivs]
   (doseq [i (range (count indivs))
           j (range i)          ; lower triangle without diagonal
@@ -196,7 +205,6 @@
   indivs)
 
 ;; poss define other linkers here
-;; Useful info:
 ;; http://www.drdobbs.com/architecture-and-design/simulating-small-world-networks/184405611
 ;; https://compuzzle.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
 ;; https://codepretty.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
@@ -204,32 +212,38 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
 
-(declare avg-relig update-success!)
+(declare avg-relig update-fields!)
 
-(deftype Community [id members success] ; id and members are regular data; success is an atom
+(deftype Community [id members success relig] ; id and members are regular data; success is an atom
   CommunityP
     (getMembers [this] members)
   CulturedP
-    (getRelig [this] 0.5) ; FIXME
+    (getRelig [this] @relig)
     (getSuccess [this] @success)
   Steppable
     (step [this sim-state] 
-      (update-success! this))
+      (update-fields! this))
   Object
     (toString [this] (str id ": " @success " " (vec (map #(.id %) members)))))
 
 (import [intermit.Sim Community])
 
-(defn update-success!
+;;; Runtime functions:
+
+;; *NOT*E: Currently using this to define getRelig for Community.  Need to change that if this changes.
+(defn update-fields!
+  "Set the success and relig fields of the community and the success field of
+  each of its members to the value of avg-relig for the members."
   [^Community community]
   (let [comm-members (.members community)
-        ^double comm-success (avg-relig comm-members)]
-    (reset! (.success community) comm-success)
+        ^double avg-rel (avg-relig comm-members)]
+    (reset! (.relig community) avg-rel)
+    (reset! (.success community) avg-rel)
     (doseq [^Indiv indiv comm-members]
-      (reset! (.success indiv) comm-success))))
+      (reset! (.success indiv) avg-rel))))
 
 (defn avg-relig
-  "Calculates the average relig value of a collection of indivs."
+  "Returns the average relig value of a collection of indivs."
   ^double [indivs]
   (let [size (count indivs)
         add-success (fn [^double acc ^Indiv indiv] (+ acc ^double @(.relig indiv)))]
@@ -237,12 +251,16 @@
       0.0
       (/ (reduce add-success 0.0 indivs) size))))
 
+
+;;; Initialization functions:
+
 (defn make-community-of-indivs
   "Make a community with size number of indivs in it."
   [sim size]
   (let [indivs  (vec (repeatedly size #(make-indiv sim)))] ; it's short; don't wait for late-realization bugs.
     (erdos-renyi-link-indivs! (.random sim) @(.linkProb (.instanceState sim)) indivs) 
-    (Community. (str (gensym "c")) indivs (atom 0.0))))
+    (Community. (str (gensym "c")) indivs (atom 0.0) (atom 0.0))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sim: class for overall system
@@ -259,7 +277,6 @@
                           (atom nil)
                           (atom nil))])
 
-;; Only used for (re-)initialization; no need to type hint:
 (defn -getNumCommunities ^long [^Sim this] @(.numCommunities (.instanceState this)))
 (defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities (.instanceState this)) newval))
 (defn -getTargetIndivsPerCommunity ^long [^Sim this] @(.meanIndivsPerCommunity (.instanceState this)))
