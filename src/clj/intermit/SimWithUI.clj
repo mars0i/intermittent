@@ -2,6 +2,9 @@
 ;;; is distributed under the Gnu General Public License version 3.0 as
 ;;; specified in the file LICENSE.
 
+;; Notes:
+
+
 (ns intermit.SimWithUI
   ;; TODO REVISE THESE IMPORTS--PROBABLY NOT ALL NEEDED:
   (:import [sim.portrayal.continuous ContinuousPortrayal2D]
@@ -20,8 +23,8 @@
               [setDisplay [sim.display.Display2D] void]
               [getDisplayFrame [] javax.swing.JFrame]
               [setDisplayFrame [javax.swing.JFrame] void]
-              [gitYardPortrayal [] sim.portrayal.continuous.ContinuousPortrayal2D]
-              [gitBuddiesPortrayal [] sim.portrayal.network.NetworkPortrayal2D]
+              [gitSpacePortrayal [] sim.portrayal.continuous.ContinuousPortrayal2D]
+              [gitLinksPortrayal [] sim.portrayal.network.NetworkPortrayal2D]
               [setupPortrayals [] void]]
     :state iState
     :init init-instance-state))
@@ -31,15 +34,16 @@
   [& args]
   [(vec args) {:display (atom nil)
                :display-frame (atom nil)
-               :yard-portrayal (ContinuousPortrayal2D.)
-               :buddies-portrayal (NetworkPortrayal2D.)}])
+               :space-portrayal (ContinuousPortrayal2D.)
+               :buddies-portrayal (NetworkPortrayal2D.)
+               }])
 
 (defn -getDisplay [this] @(:display (.iState this)))
 (defn -setDisplay [this newval] (reset! (:display (.iState this)) newval))
 (defn -getDisplayFrame [this] @(:display-frame (.iState this)))
 (defn -setDisplayFrame [this newval] (reset! (:display-frame (.iState this)) newval))
-(defn -gitYardPortrayal [this] (:yard-portrayal (.iState this)))
-(defn -gitBuddiesPortrayal [this] (:buddies-portrayal (.iState this)))
+(defn -gitSpacePortrayal [this] (:space-portrayal (.iState this)))
+(defn -gitLinksPortrayal [this] (:buddies-portrayal (.iState this)))
 
 (defn -getSimulationInspectedObject [this] (.state this))
 
@@ -57,7 +61,7 @@
   (let [vid (intermit.SimWithUI. (intermit.Sim. (System/currentTimeMillis)))]
     (.setVisible (Console. vid) true)))
 
-(defn -getName [this] "Student Schoolyard Cliques") ; override method in super
+(defn -getName [this] "Intermittent") ; override method in super
 
 (defn -start
   [this]
@@ -67,8 +71,8 @@
 (defn -setupPortrayals
   [this]
   (let [sim (.getState this)
-        yard-portrayal (.gitYardPortrayal this)
-        buddies-portrayal (.gitBuddiesPortrayal this)
+        space-portrayal (.gitSpacePortrayal this)
+        buddies-portrayal (.gitLinksPortrayal this)
         display (.getDisplay this)
         extended-oval-portayal (proxy [OvalPortrayal2D] []
                                  (draw [student graphics info]
@@ -77,15 +81,15 @@
                                      (set! (.-paint this)  ; paint var in OvalPortrayal2D; 'this' is auto-captured by proxy
                                            (Color. agitation-shade 0 (- 255 agitation-shade)))
                                      (proxy-super draw student graphics info))))]
-    (doto yard-portrayal 
-      (.setField (.gitYard sim))
-      (.setPortrayalForAll 
-        (-> extended-oval-portayal 
+    (doto space-portrayal 
+      (.setField (.gitYard sim)) ; NOTE Sim is the regular sim-state object, and this returns a Continuous2D in the Students simulation
+      (.setPortrayalForAll       ; SO MAYBE I need a Continuous2D field thing here, too?  Note it's 100x100, vs the display area that's in pixels.
+        (-> extended-oval-portayal  ; The Continuous2D is the thing that the agents are hashed into.
           (LabelledPortrayal2D. 5.0 nil Color/black true)
           (CircledPortrayal2D. 0 5.0 Color/green true)
           (MovablePortrayal2D.))))
     (doto buddies-portrayal
-      (.setField (SpatialNetwork2D. (.gitYard sim) (.gitBuddies sim)))
+      (.setField (SpatialNetwork2D. (.gitYard sim) (.gitLinks sim)))
       (.setPortrayalForAll (SimpleEdgePortrayal2D.)))
     (doto display
       (.reset )
@@ -97,19 +101,18 @@
 (defn -init
   [this controller] ; controller is called c in Java version
   (.superInit this controller)
-  (let [display (Display2D. 600 600 this)
+  (let [display (Display2D. 800 800 this)
         display-frame (.createFrame display)]
-    ;; set up display:
     (.setDisplay this display)
     (doto display
       (.setClipping false)
-      (.attach (.gitBuddiesPortrayal this) "Buddies")
-      (.attach (.gitYardPortrayal this) "Yard"))
+      (.attach (.gitSpacePortrayal this) "Space")
+      (.attach (.gitLinksPortrayal this) "Links"))
     ;; set up display frame:
     (.setDisplayFrame this display-frame)
     (.registerFrame controller display-frame)
     (doto display-frame 
-      (.setTitle "Schoolyard Display")
+      (.setTitle "Intermittent Display")
       (.setVisible true))))
 
 
