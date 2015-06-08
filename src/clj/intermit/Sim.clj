@@ -10,8 +10,7 @@
 
 ;; Tip: Methods named "getBlahBlah" or "setBlahBlah" will be found by the UI via reflection.
 
-
-(set! *warn-on-reflection* true)
+;(set! *warn-on-reflection* true)
 
 ;; Put gen-class Sim first so we can type-hint methods in Indiv etc.
 ;; But put intermit.Sim's methods at end, so we can type-hint references to Indiv, etc. in them.
@@ -97,7 +96,7 @@
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
 
-(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise most-successful-relig)
+(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise sum-religs)
 
 (deftype Indiv [id success relig neighbors popIdx] ; should neighbor relations be in the community instead? nah.
   CulturedP
@@ -105,21 +104,10 @@
     (getSuccess [this] @success)
     (update-success! [this]
       (let [others @neighbors] ; success = mean relig of my neighbors and me
-        (reset! success (/ (reduce #(+ %1 (.relig ^Indiv %2))
+        (reset! success (/ (reduce 
                                    relig
                                    others)
                            (inc (count others))))))
-  CommunicatorP
-    (copy-relig! [this sim-state population]
-      (let [^Sim sim sim-state
-            ^MersenneTwister rng (.random sim)
-            ^InstanceState istate (.instanceState sim)
-            ^Poisson poisson @(.poisson istate)
-            ^double noise-stddev @(.noiseStddev istate)]
-        (when-let [best-model (choose-most-successful 
-                                (into @neighbors
-                                      (choose-others-from-pop rng poisson this population)))]
-          (swap! relig most-successful-relig rng noise-stddev [this best-model]))))
   Steppable
     (step [this sim-state] 
       (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
@@ -132,42 +120,22 @@
 
 (import [intermit.Sim Indiv])
 
-(defn most-successful-relig
-  [relig ^MersenneTwisterFast rng ^double noise-stddev me-and-model]
-  (let [[^Indiv me ^Indiv best-model] me-and-model] ; kludge to type hint with too many args
-    (if (> @(.success me) @(.success best-model))
-      relig
-      (add-tran-noise rng noise-stddev @(.relig best-model)))))
+(extend-protocol CommunicatorP
+  Indiv
+  (copy-relig! [this ^Sim sim population]
+    (let [^MersenneTwister rng (.random sim)
+          ^InstanceState istate (.instanceState sim)
+          ^Poisson poisson @(.poisson istate)
+          ^double noise-stddev @(.noiseStddev istate)]
+      (when-let [^Indiv best-model (choose-most-successful 
+                                     (into @(.neighbors this)
+                                           (choose-others-from-pop rng poisson this population)))]
+        (when (> @(.success best-model) @(.success this))
+          (reset! (.relig this) (add-tran-noise rng noise-stddev @(.relig best-model)))))))) 
 
-(defn make-indiv
-  "Make an indiv with appropriate defaults."
-  [sim-state]
-  (Indiv.
-    (str (gensym "indiv"))
-    (atom (.nextDouble (.random sim-state)))  ; relig
-    (atom (.nextDouble (.random sim-state)))  ; success
-    (atom []) ;  Need atom for inititialization stages, though won't change after that.
-    (atom 0))) ; temp value
-
-;; Erdos-Renyi network linking (I think)
-(defn erdos-renyi-link-indivs!
-  "For each pair of indivs, with probability mean-links-per-indiv / indivs,
-  make them each others' neighbors.  Set the former to be equal to the latter
-  to link everything to everything."
-  [rng prob indivs]
-  (doseq [i (range (count indivs))
-          j (range i)          ; lower triangle without diagonal
-          :when (< (.nextDouble rng) prob)]
-    (swap! (.neighbors (nth indivs i)) conj (nth indivs j))
-    (swap! (.neighbors (nth indivs j)) conj (nth indivs i)))
-  indivs)
-
-;; poss define other linkers here
-;; Useful info:
-;; http://www.drdobbs.com/architecture-and-design/simulating-small-world-networks/184405611
-;; https://compuzzle.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
-;; https://codepretty.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
-
+(defn sum-religs
+  ^double [^double prev-relig ^Indiv next-indiv]
+  (+ prev-relig (.relig next-indiv)))
 
 ;; It's much faster to remove the originating Indiv from samples here,
 ;; rather than removing it from the collection to be sampled, at least
@@ -210,6 +178,36 @@
   ^double
   [^MersenneTwisterFast rng ^double stddev ^double relig]
   (max 0.0 (min 1.0 (+ (* stddev ^double (.nextGaussian rng))))))
+
+
+(defn make-indiv
+  "Make an indiv with appropriate defaults."
+  [sim-state]
+  (Indiv.
+    (str (gensym "indiv"))
+    (atom (.nextDouble (.random sim-state)))  ; relig
+    (atom (.nextDouble (.random sim-state)))  ; success
+    (atom []) ;  Need atom for inititialization stages, though won't change after that.
+    (atom 0))) ; temp value
+
+;; Erdos-Renyi network linking (I think)
+(defn erdos-renyi-link-indivs!
+  "For each pair of indivs, with probability mean-links-per-indiv / indivs,
+  make them each others' neighbors.  Set the former to be equal to the latter
+  to link everything to everything."
+  [rng prob indivs]
+  (doseq [i (range (count indivs))
+          j (range i)          ; lower triangle without diagonal
+          :when (< (.nextDouble rng) prob)]
+    (swap! (.neighbors (nth indivs i)) conj (nth indivs j))
+    (swap! (.neighbors (nth indivs j)) conj (nth indivs i)))
+  indivs)
+
+;; poss define other linkers here
+;; Useful info:
+;; http://www.drdobbs.com/architecture-and-design/simulating-small-world-networks/184405611
+;; https://compuzzle.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
+;; https://codepretty.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
