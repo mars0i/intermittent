@@ -63,8 +63,7 @@
 (defprotocol CulturedP
   "Protocol for things that can have culture."
   (getRelig [this])             ;; UI-available methods
-  (getSuccess [this])
-  (update-success! [this])) ;; not available to UI
+  (getSuccess [this]))
 
 (defprotocol CommunicatorP
   "Protocol for things that can communicate culture."
@@ -102,7 +101,6 @@
   CulturedP
     (getRelig [this] @relig)
     (getSuccess [this] @success)
-    (update-success! [this] (reset! success @(.success @community))) ; FIXME THIS IS A BOTTLENECK
   Steppable
     (step [this sim-state] 
       (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
@@ -110,7 +108,6 @@
         ;(println this) ; DEBUG
         ;(print (if (< @(.relig this) 0.5) "-" "+")) ; DEBUG
         ;(print (if (< @(.success this) 0.5) "-" "+")) ; DEBUG
-        (update-success! this)
         (copy-relig! this sim @(.population istate))))
   Object
     (toString [this] (str id ": " @success " " @relig " " (vec (map #(.id %) @neighbors)))))
@@ -208,6 +205,30 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
 
+(declare avg-relig update-success!)
+
+(deftype Community [id members success] ; id and members are regular data; success is an atom
+  CommunityP
+    (getMembers [this] members)
+  CulturedP
+    (getRelig [this] 0.5) ; FIXME
+    (getSuccess [this] @success)
+  Steppable
+    (step [this sim-state] 
+      (update-success! this))
+  Object
+    (toString [this] (str id ": " @success " " (vec (map #(.id %) members)))))
+
+(import [intermit.Sim Community])
+
+(defn update-success!
+  [^Community community]
+  (let [comm-members (.members community)
+        ^double comm-success (avg-relig comm-members)]
+    (reset! (.success community) comm-success)
+    (doseq [^Indiv indiv comm-members]
+      (reset! (.success indiv) comm-success))))
+
 (defn avg-relig
   "Calculates the average relig value of a collection of indivs."
   ^double [indivs]
@@ -216,22 +237,6 @@
     (if (= size 0)
       0.0
       (/ (reduce add-success 0.0 indivs) size))))
-
-
-(deftype Community [id members success] ; id and members are regular data; success is an atom
-  CommunityP
-    (getMembers [this] members)
-  CulturedP
-    (getRelig [this] 0.5) ; FIXME
-    (getSuccess [this] @success)
-    (update-success! [this] (reset! success (identity (avg-relig members)))) ; replace identity to get a different success mapping
-  Steppable
-    (step [this sim-state] 
-      (update-success! this))
-  Object
-    (toString [this] (str id ": " @success " " (vec (map #(.id %) members)))))
-
-(import [intermit.Sim Community])
 
 (defn make-community-of-indivs
   "Make a community with size number of indivs in it."
