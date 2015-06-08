@@ -98,7 +98,7 @@
 
 (declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise sum-religs)
 
-(deftype Indiv [id success relig neighbors popIdx] ; should neighbor relations be in the community instead? nah.
+(deftype Indiv [id success relig neighbors] ; should neighbor relations be in the community instead? nah.
   CulturedP
     (getRelig [this] @relig)
     (getSuccess [this] @success)
@@ -187,8 +187,7 @@
     (str (gensym "i"))
     (atom (.nextDouble (.random sim-state)))  ; relig
     (atom (.nextDouble (.random sim-state)))  ; success
-    (atom []) ;  Need atom for inititialization stages, though won't change after that.
-    (atom 0))) ; temp value
+    (atom []))) ;  Need atom for inititialization stages, though won't change after that.
 
 ;; Erdos-Renyi network linking (I think)
 (defn erdos-renyi-link-indivs!
@@ -281,7 +280,5 @@
     (reset! (.poisson instance-state) (Poisson. @(.poissonMean instance-state) (.random this)))
     (reset! (.communities instance-state) communities)
     (reset! (.population instance-state) population)
-    (dotimes [idx (count population)]   ; need to store indexes in indivs
-      (let [indiv (nth population idx)] ;  so go old school
-        (reset! (.popIdx indiv) idx)
-        (.scheduleRepeating schedule indiv)))))
+    (doseq [indiv population]
+        (.scheduleRepeating schedule indiv))))
