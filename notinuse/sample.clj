@@ -142,3 +142,23 @@
             (recur (conj sample-set sample))))))))
 
 (def sample-wout-repl selfaware-transient-identity-sample-vec-wout-repl)
+
+;; It's much faster to remove the originating Indiv from samples here,
+;; rather than removing it from the collection to be sampled, at least
+;; for reasonably large populations.
+(defn sample-wout-repl-or-me
+  "Special sample without replacement function:
+  Returns num-samples samples from coll without replacement, excluding 
+  items identical? to me.  Returns a vector or a set; if you want something
+  more specific, it's the caller's responsibility.  Should be fastest when
+  coll has fast index access (e.g. it's a vector) and when the elements hash
+  by identity (e.g. when defined by deftype rather than defrecord)."
+  [^MersenneTwisterFast rng ^long num-samples me coll]
+  (let [size (count coll)]
+    (loop [sample-set #{}]
+      (if (= (count sample-set) num-samples)
+        sample-set
+        (let [sample (nth coll (.nextInt rng size))]
+          (if (identical? me sample) ; if it's the one we don't want,
+            (recur sample-set)       ; lose it
+            (recur (conj sample-set sample))))))))
