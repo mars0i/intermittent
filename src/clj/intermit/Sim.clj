@@ -104,9 +104,7 @@
     (getSuccess [this] @success)
     (update-success! [this]
       (let [others @neighbors] ; success = mean relig of my neighbors and me
-        (reset! success (/ (reduce 
-                                   relig
-                                   others)
+        (reset! success (/ (reduce sum-religs @relig others) ; TODO REVISE SHOULD BE ENTIRE COMMUNITY
                            (inc (count others))))))
   Steppable
     (step [this sim-state] 
@@ -114,7 +112,9 @@
             ^intermit.Sim.InstanceState istate (.instanceState sim)]
         ;(println this) ; DEBUG
         ;(print (if (< @(.relig this) 0.5) "-" "+")) ; DEBUG
-        (copy-relig! this sim @(.population istate))))
+        ;(print (if (< @(.success this) 0.5) "-" "+")) ; DEBUG
+        (copy-relig! this sim @(.population istate))
+        (update-success! this)))
   Object
     (toString [this] (str id ": " @success " " @relig " " (vec (map #(.id %) @neighbors)))))
 
@@ -135,7 +135,7 @@
 
 (defn sum-religs
   ^double [^double prev-relig ^Indiv next-indiv]
-  (+ prev-relig (.relig next-indiv)))
+  (+ prev-relig @(.relig next-indiv)))
 
 ;; It's much faster to remove the originating Indiv from samples here,
 ;; rather than removing it from the collection to be sampled, at least
@@ -184,7 +184,7 @@
   "Make an indiv with appropriate defaults."
   [sim-state]
   (Indiv.
-    (str (gensym "indiv"))
+    (str (gensym "i"))
     (atom (.nextDouble (.random sim-state)))  ; relig
     (atom (.nextDouble (.random sim-state)))  ; success
     (atom []) ;  Need atom for inititialization stages, though won't change after that.
@@ -212,7 +212,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
 
-;; TODO ADD ID
 (deftype Community [id members]
   CommunityP
   (getMembers [this] members)
@@ -229,7 +228,7 @@
   [sim size]
   (let [indivs  (doall (repeatedly size #(make-indiv sim)))] ; it's short; don't wait for late-realization bugs.
     (erdos-renyi-link-indivs! (.random sim) @(.linkProb (.instanceState sim)) indivs) 
-    (Community. (str (gensym "comm")) indivs)))
+    (Community. (str (gensym "c")) indivs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sim: class for overall system
