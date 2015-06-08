@@ -97,7 +97,7 @@
 
 (declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise)
 
-(deftype Indiv [id community success relig neighbors] ; should neighbor relations be in the community instead? nah.
+(deftype Indiv [id success relig neighbors] ; should neighbor relations be in the community instead? nah.
   CulturedP
     (getRelig [this] @relig)
     (getSuccess [this] @success)
@@ -178,7 +178,6 @@
   [sim-state]
   (Indiv.
     (str (gensym "i")) ; id
-    (atom nil) ; community
     (atom (.nextDouble (.random sim-state)))  ; success
     (atom (.nextDouble (.random sim-state)))  ; relig
     (atom []))) ;  neighbors (need atom for inititialization stages, though won't change after that)
@@ -299,5 +298,4 @@
     (doseq [indiv population]
       (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))            ; indivs run first
     (doseq [community communities]
-      (doseq [indiv (.members community)] (reset! (.community indiv) community)) ; give every indiv a pointer to its community
       (.scheduleRepeating schedule Schedule/EPOCH 1 community)))) ; then communities
