@@ -11,7 +11,7 @@
 ;; Tip: Methods named "getBlahBlah" or "setBlahBlah" will be found by the UI via reflection.
 
 
-;(set! *warn-on-reflection* true)
+(set! *warn-on-reflection* true)
 
 ;; Put gen-class Sim first so we can type-hint methods in Indiv etc.
 ;; But put intermit.Sim's methods at end, so we can type-hint references to Indiv, etc. in them.
@@ -52,26 +52,6 @@
 (def initial-link-prob 0.3)
 (def initial-noise-stddev 0.2)
 (def initial-poisson-mean 1)
-
-;; It's much faster to remove the originating Indiv from samples here,
-;; rather than removing it from the collection to be sampled, at least
-;; for reasonably large populations.
-(defn sample-wout-repl-or-me
-  "Special sample without replacement function:
-  Returns num-samples samples from coll without replacement, excluding 
-  items identical? to me.  Returns a vector or a set; if you want something
-  more specific, it's the caller's responsibility.  Should be fastest when
-  coll has fast index access (e.g. it's a vector) and when the elements hash
-  by identity (e.g. when defined by deftype rather than defrecord)."
-  [^MersenneTwisterFast rng ^long num-samples me coll]
-  (let [size (count coll)]
-    (loop [sample-set #{}]
-      (if (= (count sample-set) num-samples)
-        sample-set
-        (let [sample (nth coll (.nextInt rng size))]
-          (if (identical? me sample) ; if it's the one we don't want,
-            (recur sample-set)       ; lose it
-            (recur (conj sample-set sample))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PROTOCOLS/INTERFACES
@@ -117,35 +97,7 @@
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
 
-;; TODO THESE DEFS WRONG--S/B SUCCESS BIAS NOT HIGH RELIG BIAS
-(defn choose-relig
-  "Given a relig value and a sequence of CulturedP's, compares the relig
-  value with the relig values of the CulturedP's, returning the largest one."
-  ^double
-  [me others]
-; for me and others, find the one with the best 
- ) 
-;  (reduce #(max %1 (getRelig %2)) my-relig others))
-
-(defn add-tran-noise
- "Add Normal noise with stddev to relig, clipping to extrema 0.0 and 1.0."
-  ^double
-  [^MersenneTwisterFast rng ^double stddev ^double relig]
-  (max 0.0 (min 1.0 (+ (* stddev ^double (.nextGaussian rng))
-                       relig)))
-
-(defn copy-best-relig
-  "Choose the best, accurately perceived relig value of others if better than
-  my-relig, add Normally distributed noise (with mean zero and standard deviation
-  stddev) to the result, and return the sum."
-  ^double
-  [^MersenneTwisterFast rng ^double stddev me others]
-  (add-tran-noise rng stddev (choose-relig me others)))
-
-(defn choose-others-from-pop
-  [^MersenneTwisterFast rng ^Poisson poisson me population]
-  (let [num-to-choose (.nextInt poisson)]
-    (sample-wout-repl-or-me rng num-to-choose me population)))
+(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise)
 
 (deftype Indiv [id success relig neighbors popIdx] ; should neighbor relations be in the community instead? nah.
   CulturedP
@@ -153,21 +105,22 @@
     (getSuccess [this] @success)
     (update-success! [this]
       (let [others @neighbors] ; success = mean relig of my neighbors and me
-        (reset! success (/ (reduce #(+ %1 (.relig %2))
+        (reset! success (/ (reduce #(+ %1 (.relig ^Indiv %2))
                                    relig
                                    others)
                            (inc (count others))))))
   CommunicatorP
-    (copy-relig![this sim-state population]
+    (copy-relig! [this sim-state population]
       (let [^Sim sim sim-state
-            ^InstanceState istate (.instanceState sim)
             ^MersenneTwister rng (.random sim)
+            ^InstanceState istate (.instanceState sim)
             ^Poisson poisson @(.poisson istate)
             ^double noise-stddev @(.noiseStddev istate)]
-        (when-let [models (not-empty
-                            (into @neighbors
-                                  (choose-others-from-pop rng poisson this population)))]
-          (reset! relig (copy-best-relig rng noise-stddev me models))))) ; REPLACE
+        (when-let [best-model (choose-most-successful 
+                                (into @neighbors
+                                      (choose-others-from-pop rng poisson this population)))]
+          (when (> @(.success best-model) @success)  ; TODO would it be better to embed this into a function passed to swap! ?
+            (reset! relig (add-tran-noise rng noise-stddev @(.relig best-model)))))))
   Steppable
     (step [this sim-state] 
       (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
@@ -176,7 +129,7 @@
         ;(print (if (< @(.relig this) 0.5) "-" "+")) ; DEBUG
         (copy-relig! this sim @(.population istate))))
   Object
-    (toString [this] (str id ": " @relig " " @success " " (vec (map #(.id %) @neighbors)))))
+    (toString [this] (str id ": " @success " " @relig " " (vec (map #(.id %) @neighbors)))))
 
 (import [intermit.Sim Indiv])
 
@@ -208,6 +161,49 @@
 ;; http://www.drdobbs.com/architecture-and-design/simulating-small-world-networks/184405611
 ;; https://compuzzle.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
 ;; https://codepretty.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
+
+
+;; It's much faster to remove the originating Indiv from samples here,
+;; rather than removing it from the collection to be sampled, at least
+;; for reasonably large populations.
+(defn sample-wout-repl-or-me
+  "Special sample without replacement function:
+  Returns num-samples samples from coll without replacement, excluding 
+  items identical? to me.  Returns a vector or a set; if you want something
+  more specific, it's the caller's responsibility.  Should be fastest when
+  coll has fast index access (e.g. it's a vector) and when the elements hash
+  by identity (e.g. when defined by deftype rather than defrecord)."
+  [^MersenneTwisterFast rng ^long num-samples me coll]
+  (let [size (count coll)]
+    (loop [sample-set #{}]
+      (if (= (count sample-set) num-samples)
+        sample-set
+        (let [sample (nth coll (.nextInt rng size))]
+          (if (identical? me sample) ; if it's the one we don't want,
+            (recur sample-set)       ; lose it
+            (recur (conj sample-set sample))))))))
+
+(defn choose-others-from-pop
+  [^MersenneTwisterFast rng ^Poisson poisson me population]
+  (let [num-to-choose (.nextInt poisson)]
+    (sample-wout-repl-or-me rng num-to-choose me population)))
+
+
+;; Can I avoid repeated accesses to the same field, caching them?  Does it matter?
+(defn choose-most-successful
+  "Given a collection of Indiv's, returns the one with the greatest success, or
+  nil if the collection is empty."
+  [models]
+  (letfn [(compare-success 
+            ([] nil) ; what reduce does if collection is empty
+            ([^Indiv i1 ^Indiv i2] (if (> @(.success i1) @(.success i2)) i1 i2)))]
+          (reduce compare-success models)))
+
+(defn add-tran-noise
+ "Add Normal noise with stddev to relig, clipping to extrema 0.0 and 1.0."
+  ^double
+  [^MersenneTwisterFast rng ^double stddev ^double relig]
+  (max 0.0 (min 1.0 (+ (* stddev ^double (.nextGaussian rng))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
