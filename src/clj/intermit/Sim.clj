@@ -228,9 +228,11 @@
     (getSuccess [this] @success)
     (update-success! [this] (reset! success (avg-success members)))
   Steppable
-    (step [this sim-state] (update-success! this))
+    (step [this sim-state] 
+      (println this) ; DEBUG
+      (update-success! this))
   Object
-    (toString [this] (str id ": " (vec (map #(.id %) members)))))
+    (toString [this] (str id ": " @success " " (vec (map #(.id %) members)))))
 
 (import [intermit.Sim Community])
 
@@ -292,5 +294,7 @@
     (reset! (.poisson instance-state) (Poisson. @(.poissonMean instance-state) (.random this)))
     (reset! (.communities instance-state) communities)
     (reset! (.population instance-state) population)
-    (doseq [indiv population] (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))            ; indivs run first
-    (doseq [community communities] (.scheduleRepeating schedule Schedule/EPOCH 1 community)))) ; then communities
+    (doseq [indiv population]
+      (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))            ; indivs run first
+    (doseq [community communities]
+      (.scheduleRepeating schedule Schedule/EPOCH 1 community)))) ; then communities
