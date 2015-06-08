@@ -232,7 +232,9 @@
 
 (defn update-fields!
   "Set the success and relig fields of the community and the success field of
-  each of its members to the value of avg-relig for the members."
+  each of its members to the value of avg-relig for the members.  (Indiv success
+  is the same as community success, and community relig is the average of its
+  indivs' religs.)"
   [^Community community]
   (let [comm-members (.members community)
         ^double avg-rel (avg-relig comm-members)]
