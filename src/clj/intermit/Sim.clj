@@ -89,7 +89,7 @@
                         population              ; holds all individuals
                         poisson])
 
-(import [intermit.Sim InstanceState])
+;(import [intermit.Sim InstanceState])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; INDIV: class for individuals who communicate with each other.
@@ -114,7 +114,7 @@
   Object
     (toString [this] (str id ": " @success " " @relig " " (vec (map #(.id %) @neighbors)))))
 
-(import [intermit.Sim Indiv])
+;(import [intermit.Sim Indiv])
 
 ;; CommunicatorP methods on Indiv moved to here to allow type-hinting with ^Indiv
 ;; (Faster than putting the type hints into a function embedded in a swap! call)
@@ -226,7 +226,7 @@
   Object
     (toString [this] (str id ": " @success " " (vec (map #(.id %) members)))))
 
-(import [intermit.Sim Community])
+;(import [intermit.Sim Community])
 
 ;;; Runtime functions:
 
