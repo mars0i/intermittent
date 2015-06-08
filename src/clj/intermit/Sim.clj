@@ -31,8 +31,8 @@
               :exposes-methods {start superStart}                  ; alias method start() in superclass. (Don't name it 'super-start'; use a Java name.)
               :methods [[getNumCommunities [] long]                ; these methods are defined much further down
                         [setNumCommunities [long] void]
-                        [getTargetIndivsPerCommunity [] long]
-                        [setTargetIndivsPerCommunity [long] void]
+                        [getMeanIndivsPerCommunity [] long]
+                        [setMeanIndivsPerCommunity [long] void]
                         [getLinkProb [] double]
                         [setLinkProb [double] void]
                         [getNoiseStddev [] double]
@@ -280,8 +280,8 @@
 
 (defn -getNumCommunities ^long [^Sim this] @(.numCommunities (.instanceState this)))
 (defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities (.instanceState this)) newval))
-(defn -getTargetIndivsPerCommunity ^long [^Sim this] @(.meanIndivsPerCommunity (.instanceState this)))
-(defn -setTargetIndivsPerCommunity [^Sim this ^long newval] (reset! (.meanIndivsPerCommunity (.instanceState this)) newval))
+(defn -getMeanIndivsPerCommunity ^long [^Sim this] @(.meanIndivsPerCommunity (.instanceState this)))
+(defn -setMeanIndivsPerCommunity [^Sim this ^long newval] (reset! (.meanIndivsPerCommunity (.instanceState this)) newval))
 (defn -getLinkProb ^double [^Sim this] @(.linkProb (.instanceState this)))
 (defn -setLinkProb [^Sim this ^double newval] (reset! (.linkProb (.instanceState this)) newval))
 (defn -getNoiseStddev ^double [^Sim this] @(.noiseStddev (.instanceState this)))
