@@ -99,10 +99,21 @@
 (declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise)
 
 (deftype Indiv [id success relig neighbors]
-  ;; CommunicatorP methods moved to extend-protocol to allow type-hinting with ^Indiv
   CulturedP
     (getRelig [this] @relig)
     (getSuccess [this] @success)
+  CommunicatorP
+    (copy-relig! [this sim-state population]
+      (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
+            ^MersenneTwister rng (.random sim)
+            ^InstanceState istate (.instanceState sim)
+            ^Poisson poisson @(.poisson istate)
+            ^double noise-stddev @(.noiseStddev istate)]
+        (when-let [^Indiv best-model (choose-most-successful    ; find the most successful indiv from among
+                                       (into @(.neighbors this) ;   (a) neighbors, (b) 0 or more random indivs from entire pop
+                                             (choose-others-from-pop rng poisson this population)))]
+          (when (> @(.success best-model) @(.success this))     ; is most successful other, better than me?
+            (reset! (.relig this) (add-tran-noise rng noise-stddev @(.relig best-model))))))) 
   Steppable
     (step [this sim-state] 
       (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
@@ -116,23 +127,15 @@
 
 ;(import [intermit.Sim Indiv])
 
-;; CommunicatorP methods on Indiv moved to here to allow type-hinting with ^Indiv
-;; (Faster than putting the type hints into a function embedded in a swap! call)
-(extend-protocol CommunicatorP
-  Indiv
-  (copy-relig! [this ^Sim sim population]
-    (let [^MersenneTwister rng (.random sim)
-          ^InstanceState istate (.instanceState sim)
-          ^Poisson poisson @(.poisson istate)
-          ^double noise-stddev @(.noiseStddev istate)]
-      (when-let [^Indiv best-model (choose-most-successful 
-                                     (into @(.neighbors this)
-                                           (choose-others-from-pop rng poisson this population)))]
-        (when (> @(.success best-model) @(.success this))
-          (reset! (.relig this) (add-tran-noise rng noise-stddev @(.relig best-model)))))))) 
-
-
 ;;; Runtime functions:
+
+(defn choose-others-from-pop
+  "Randomly sample a Poisson-distributed number of indivs from population,
+  excluding me.  (The mean for the Poisson distribution is stored in the
+  poisson object.)"
+  [^MersenneTwisterFast rng ^Poisson poisson me population]
+  (let [num-to-choose (.nextInt poisson)]
+    (sample-wout-repl-or-me rng num-to-choose me population)))
 
 ;; It's much faster to remove the originating Indiv from samples here,
 ;; rather than removing it from the collection to be sampled, at least
@@ -153,14 +156,6 @@
           (if (identical? me sample) ; if it's the one we don't want,
             (recur sample-set)       ; lose it
             (recur (conj sample-set sample))))))))
-
-(defn choose-others-from-pop
-  "Randomly sample a Poisson-distributed number of indivs from population,
-  excluding me.  (The mean for the Poisson distribution is stored in the
-  poisson object.)"
-  [^MersenneTwisterFast rng ^Poisson poisson me population]
-  (let [num-to-choose (.nextInt poisson)]
-    (sample-wout-repl-or-me rng num-to-choose me population)))
 
 ;; Can I avoid repeated accesses to the same field, caching them?  Does it matter?
 (defn choose-most-successful
