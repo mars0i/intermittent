@@ -211,23 +211,35 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
 
-(deftype Community [id members]
+(defn avg-success
+  ^double [indivs]
+  (let [size (count indivs)
+        add-success (fn [^double acc ^Indiv indiv] (+ acc @(.success indiv)))]
+    (if (= size 0)
+      0.0
+      (/ (reduce add-success 0.0 indivs) size))))
+
+
+(deftype Community [id members success] ; id and members are regular data; success is an atom
   CommunityP
-  (getMembers [this] members)
+    (getMembers [this] members)
   CulturedP
-  (getRelig [this] 0.5)    ; TODO summary of members' values
-  (getSuccess [this] 0.5) ; TODO summary of members' values
+    (getRelig [this] 0.5) ; FIXME
+    (getSuccess [this] @success)
+    (update-success! [this] (reset! success (avg-success members)))
+  Steppable
+    (step [this sim-state] (update-success! this))
   Object
-  (toString [this] (str id ": " (vec (map #(.id %) @members)))))
+    (toString [this] (str id ": " (vec (map #(.id %) members)))))
 
 (import [intermit.Sim Community])
 
 (defn make-community-of-indivs
   "Make a community with size number of indivs in it."
   [sim size]
-  (let [indivs  (doall (repeatedly size #(make-indiv sim)))] ; it's short; don't wait for late-realization bugs.
+  (let [indivs  (vec (repeatedly size #(make-indiv sim)))] ; it's short; don't wait for late-realization bugs.
     (erdos-renyi-link-indivs! (.random sim) @(.linkProb (.instanceState sim)) indivs) 
-    (Community. (str (gensym "c")) indivs)))
+    (Community. (str (gensym "c")) indivs (atom 0.0))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sim: class for overall system
@@ -280,5 +292,5 @@
     (reset! (.poisson instance-state) (Poisson. @(.poissonMean instance-state) (.random this)))
     (reset! (.communities instance-state) communities)
     (reset! (.population instance-state) population)
-    (doseq [indiv population]
-        (.scheduleRepeating schedule indiv))))
+    (doseq [indiv population] (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))            ; indivs run first
+    (doseq [community communities] (.scheduleRepeating schedule Schedule/EPOCH 1 community)))) ; then communities
