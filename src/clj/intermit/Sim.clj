@@ -97,7 +97,7 @@
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
 
-(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise)
+(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise most-successful-relig)
 
 (deftype Indiv [id success relig neighbors popIdx] ; should neighbor relations be in the community instead? nah.
   CulturedP
@@ -119,8 +119,7 @@
         (when-let [best-model (choose-most-successful 
                                 (into @neighbors
                                       (choose-others-from-pop rng poisson this population)))]
-          (when (> @(.success best-model) @success)  ; TODO would it be better to embed this into a function passed to swap! ?
-            (reset! relig (add-tran-noise rng noise-stddev @(.relig best-model)))))))
+          (swap! relig most-successful-relig rng noise-stddev [this best-model]))))
   Steppable
     (step [this sim-state] 
       (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
@@ -132,6 +131,13 @@
     (toString [this] (str id ": " @success " " @relig " " (vec (map #(.id %) @neighbors)))))
 
 (import [intermit.Sim Indiv])
+
+(defn most-successful-relig
+  [relig ^MersenneTwisterFast rng ^double noise-stddev me-and-model]
+  (let [[^Indiv me ^Indiv best-model] me-and-model] ; kludge to type hint with too many args
+    (if (> @(.success me) @(.success best-model))
+      relig
+      (add-tran-noise rng noise-stddev @(.relig best-model)))))
 
 (defn make-indiv
   "Make an indiv with appropriate defaults."
