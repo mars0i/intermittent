@@ -119,9 +119,7 @@
     (step [this sim-state] 
       (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
             ^intermit.Sim.InstanceState istate (.instanceState sim)]
-        ;(println this) ; DEBUG
-        ;(print (if (< @(.relig this) 0.5) "-" "+")) ; DEBUG
-        ;(print (if (< @(.success this) 0.5) "-" "+")) ; DEBUG
+        ;(println this) ;(print (if (< @(.relig this) 0.5) "-" "+")) ;(print (if (< @(.success this) 0.5) "-" "+")) ; DEBUG
         (copy-relig! this sim @(.population istate))))
   Object
     (toString [this] (str id ": " @success " " @relig " " (vec (map #(.id %) @neighbors)))))
@@ -188,10 +186,10 @@
     (atom (.nextDouble (.random sim-state)))  ; relig
     (atom []))) ;  neighbors (need atom for inititialization stages, though won't change after that)
 
-;; Erdos-Renyi network linking (I think)
-(defn erdos-renyi-link-indivs!
-  "For each pair of indivs, with probability prob, make them each others' neighbors.
-  (Set prob to 1 to link all indivs to each other.)"
+(defn binomial-link-indivs!
+  "For each pair of indivs, with probability prob, make them eachothers' neighbors.
+  Set prob to 1 to link all indivs to each other.  (This is a 'binomial' [edge
+  dist], 'Poisson' [degree dist], or 'Erdös-Rényi' random graph.)"
   [rng prob indivs]
   (doseq [i (range (count indivs))
           j (range i)          ; lower triangle without diagonal
@@ -255,7 +253,7 @@
   "Make a community with size number of indivs in it."
   [sim size]
   (let [indivs  (vec (repeatedly size #(make-indiv sim)))] ; it's short; don't wait for late-realization bugs.
-    (erdos-renyi-link-indivs! (.random sim) @(.linkProb (.instanceState sim)) indivs) 
+    (binomial-link-indivs! (.random sim) @(.linkProb (.instanceState sim)) indivs) 
     (Community. (str (gensym "c")) indivs (atom 0.0) (atom 0.0))))
 
 
