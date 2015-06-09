@@ -1,9 +1,16 @@
+;;; This software is copyright 2015 by Marshall Abrams, and
+;;; is distributed under the Gnu General Public License version 3.0 as
+;;; specified in the file LICENSE.
+
+;; Much of the code in this file is ported from my CultranDejanet.nlogo
+;; or one of my NetworkExperiment NetLogo models.
+
 (ns intermit.layout
   (:require [clojure.math.numeric-tower :as m]))
 
 (declare near-factors middle-factors middle-factors-helper)
 
-;; Ported from my CultranDejanet.nlogo or one of my NetworkExperiment NetLogo models
+
 (defn near-factors
   "Finds the pair of factors of n whose product is n and whose
   values are closest in value to each other; if there are no
