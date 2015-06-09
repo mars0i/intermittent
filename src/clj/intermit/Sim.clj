@@ -305,10 +305,16 @@
         communities (vec (repeatedly num-communities
                                        #(make-community-of-indivs this indivs-per-community)))
         population (vec (mapcat getMembers communities))]
+    ;; set up core simulation structures (the stuff that runs even in headless mode)
     (reset! (.poisson instance-state) (Poisson. @(.poissonMean instance-state) (.random this)))
     (reset! (.communities instance-state) communities)
     (reset! (.population instance-state) population)
     (doseq [indiv population]
-      (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))            ; indivs run first
+      (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))      ; indivs run first
     (doseq [community communities]
-      (.scheduleRepeating schedule Schedule/EPOCH 1 community)))) ; then communities
+      (.scheduleRepeating schedule Schedule/EPOCH 1 community)) ; then communities
+    ;; non-graphical data structures needed for graphics:
+
+    ;; graphics data structures:
+
+  ))
