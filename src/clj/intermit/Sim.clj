@@ -236,6 +236,10 @@
     (reset! (.success community) avg-rel)
     (doseq [^Indiv indiv comm-members]
       (reset! (.success indiv) avg-rel))))
+;; TODO This way of determining indiv success is problematic.
+;; It means (a) all members of comm have same success, so there's
+;; no point in surveying neighbors; they should be chosen randomly
+;; if they don't beat out the global candidate(s).
 
 (defn avg-relig
   "Returns the average relig value of a collection of indivs."
