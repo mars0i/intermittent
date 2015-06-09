@@ -3,6 +3,26 @@
 ;;; specified in the file LICENSE.
 
 ;; Notes:
+;; In Students, we have
+;;  * the SimState object (students)
+;;  * a Continuous2D (yard)
+;;    - we calculate x,y coordinates for each student, and insert it into the yard 
+;;      Continuous2D using setObjectLocation.
+;;  * the ContinuousPortrayal2D (yard-portrayal)
+;;    - we setField it with the yard, i.e. the Continous2D
+;;    - we setPortrayalForAll it with various Portrayals that apply to the indiv students, somehow
+;; Also:
+;; * a Network (buddies)
+;;   - we add each student to the Network using addNode
+;;   - we add (random) links to the Network using addEdge
+;; * a NetworkPortrayal2D (buddies-portrayal)
+;;   - we setField it with a SpatialNetwork2D, to which we pass 
+;;     the yard Continuous2D and the buddies Network.
+;;   - we setPortryalForAll it with an edge portrayal, that applies to edges, apparently.
+;; Also:
+;; * we do the preceding in a method called from -start.
+;; * we do various things in -init to attach() this stuff to the display objects.
+;; * and some display setup in -main.
 
 
 (ns intermit.SimWithUI
@@ -97,6 +117,7 @@
       (.repaint))))
 
 
+;; MOSTLY OK NOW AFTER SMALL MODS FROM Students VERSION.
 ;; UI method--not for initializing the gen-class state.
 (defn -init
   [this controller] ; controller is called c in Java version
@@ -106,8 +127,8 @@
     (.setDisplay this display)
     (doto display
       (.setClipping false)
-      (.attach (.gitSpacePortrayal this) "Space")
-      (.attach (.gitLinksPortrayal this) "Links"))
+      (.attach (.gitLinksPortrayal this) "Links")  ; IS THIS OK?
+      (.attach (.gitSpacePortrayal this) "Space")) ; IS THIS OK?
     ;; set up display frame:
     (.setDisplayFrame this display-frame)
     (.registerFrame controller display-frame)
@@ -116,6 +137,7 @@
       (.setVisible true))))
 
 
+;; THIS IS PROBABLY OK AS IS FROM Students
 (defn -quit
   [this]
   (.superQuit this)  ; combine in doto?
