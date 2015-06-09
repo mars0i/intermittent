@@ -14,7 +14,6 @@
 
 ;; Put gen-class Sim first so we can type-hint methods in Indiv etc.
 ;; But put intermit.Sim's methods at end, so we can type-hint references to Indiv, etc. in them.
-
 (ns intermit.Sim
   (:require [intermit.utils :as u])
   (:import [sim.field.continuous Continuous2D]
@@ -97,7 +96,7 @@
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
 
-(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise)
+(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise avg-relig update-fields!)
 
 (deftype Indiv [id success relig neighbors]
   CulturedP
@@ -106,16 +105,18 @@
   CommunicatorP
     (copy-relig! [this sim-state population]
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
-            ^MersenneTwister rng (.random sim)
+            ^MersenneTwisterFast rng (.random sim)
             ^InstanceState istate (.instanceState sim)
             ^Poisson poisson @(.poisson istate)
             ^double noise-stddev @(.noiseStddev istate)]
-        (when-let [^Indiv best-model (choose-most-successful    ; find the most successful indiv from among
+        (when-let [^Indiv best-model (choose-most-successful 
+                                       rng
                                        (into @(.neighbors this) ;   (a) neighbors, (b) 0 or more random indivs from entire pop
                                              (choose-others-from-pop rng poisson this population)))]
-          (when (> @(.success best-model) @(.success this))     ; is most successful other, better than me?
+          (when (> @(.success best-model) @success)     ; is most successful other, better than me?
             (reset! (.relig this) (add-tran-noise rng noise-stddev @(.relig best-model))))))) 
   Steppable
+    ;; Note that by maintaining only a single version of vars, and allowing each indiv to be stepped in random order, we allow per-tick path dependencies.
     (step [this sim-state] 
       (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
             ^intermit.Sim.InstanceState istate (.instanceState sim)]
@@ -149,7 +150,7 @@
   [^MersenneTwisterFast rng ^long num-samples me coll]
   (let [size (count coll)]
     (loop [sample-set #{}]
-      (if (= (count sample-set) num-samples)
+      (if (== (count sample-set) num-samples)
         sample-set
         (let [sample (nth coll (.nextInt rng size))]
           (if (identical? me sample) ; if it's the one we don't want,
@@ -160,13 +161,14 @@
 (defn choose-most-successful
   "Given a collection of Indiv's, returns the one with the greatest success, or
   nil if the collection is empty."
-  ^Indiv [models]
+  ^Indiv [^MersenneTwisterFast rng models]
   (letfn [(compare-success 
             ([] nil) ; what reduce does if collection is empty
-            ([^Indiv i1 ^Indiv i2] (if (> ^double @(.success i1)
-                                          ^double @(.success i2))
-                                     i1
-                                     i2)))]
+            ([^Indiv i1 ^Indiv i2] (let [^double success1 @(.success i1)
+                                         ^double success2 @(.success i2)]
+                                     (cond (== success1 success2) (if (< (.nextDouble rng) 0.5) i1 i2) ; a rare case, but we don't ties' results to be path dependent.
+                                           (> success1 success2) i1
+                                           :else i2))))]
           (reduce compare-success models)))
 
 (defn add-tran-noise
@@ -206,50 +208,32 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
 
-(declare avg-relig update-fields!)
-
-(deftype Community [id members success relig] ; id and members are regular data; success is an atom
+(deftype Community [id members] ; id and members are regular data; success is an atom
   CommunityP
     (getMembers [this] members)
-  CulturedP
-    (getRelig [this] @relig)
-    (getSuccess [this] @success)
   Steppable
-    (step [this sim-state] 
-      (update-fields! this))
+    (step [this sim-state]
+      ;(println "=======") (doseq [indiv members] (println indiv)) ; DEBUG
+      ;; Success comes from neighbors in this model. (if from entire community, there's no way to choose between neighbors.)
+      ;; It's lots faster to update indivs' success here than in Indiv's step fn,
+      ;; and it removes relig->success path dependence: When Communities are stepped,
+      ;; relig values for all of the indivs have already been determined for this timestep.
+      (doseq [^Indiv indiv members] 
+        (swap! (.success indiv) #(avg-relig %1 @(.neighbors indiv)))))
   Object
-    (toString [this] (str id ": " @success " " (vec (map #(.id %) members)))))
+    (toString [this] (str id ": " (vec (map #(.id %) members)))))
 
 ;(import [intermit.Sim Community])
 
 ;;; Runtime functions:
 
-(defn update-fields!
-  "Set the success and relig fields of the community and the success field of
-  each of its members to the value of avg-relig for the members.  (Indiv success
-  is the same as community success, and community relig is the average of its
-  indivs' religs.)"
-  [^Community community]
-  (let [comm-members (.members community)
-        ^double avg-rel (avg-relig comm-members)]
-    (reset! (.relig community) avg-rel)
-    (reset! (.success community) avg-rel)
-    (doseq [^Indiv indiv comm-members]
-      (reset! (.success indiv) avg-rel))))
-;; TODO This way of determining indiv success is problematic.
-;; It means (a) all members of comm have same success, so there's
-;; no point in surveying neighbors; they should be chosen randomly
-;; if they don't beat out the global candidate(s).
-
 (defn avg-relig
-  "Returns the average relig value of a collection of indivs."
-  ^double [indivs]
-  (let [size (count indivs)
+  "Returns the average of relig values of a collection of indivs and
+  the given relig value."
+  ^double [^double relig indivs]
+  (let [size (inc (count indivs))
         add-success (fn [^double acc ^Indiv indiv] (+ acc ^double @(.relig indiv)))]
-    (if (= size 0)
-      0.0
-      (/ (reduce add-success 0.0 indivs) size))))
-
+      (/ (reduce add-success relig indivs) size)))
 
 ;;; Initialization functions:
 
@@ -258,7 +242,7 @@
   [sim size]
   (let [indivs  (vec (repeatedly size #(make-indiv sim)))] ; it's short; don't wait for late-realization bugs.
     (binomial-link-indivs! (.random sim) @(.linkProb (.instanceState sim)) indivs) 
-    (Community. (str (gensym "c")) indivs (atom 0.0) (atom 0.0))))
+    (Community. (str (gensym "c")) indivs)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -310,15 +294,15 @@
                                        #(make-community-of-indivs this indivs-per-community)))
         population (vec (mapcat getMembers communities))]
     ;; set up core simulation structures (the stuff that runs even in headless mode)
+    ;(println (map #(identity @(.relig %)) population))
     (reset! (.poisson instance-state) (Poisson. @(.poissonMean instance-state) (.random this)))
     (reset! (.communities instance-state) communities)
     (reset! (.population instance-state) population)
     (doseq [indiv population]
-      (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))      ; indivs run first
+      (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))       ; indivs run first
     (doseq [community communities]
-      (.scheduleRepeating schedule Schedule/EPOCH 1 community)) ; then communities
+      (.scheduleRepeating schedule Schedule/EPOCH 1 community)) ; then communities run
     ;; non-graphical data structures needed for graphics:
-
     ;; graphics data structures:
-
+    (println "WHY ARE RELIG VALUES DROPPING TO ZERO?")
   ))
