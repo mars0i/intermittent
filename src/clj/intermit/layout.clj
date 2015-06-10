@@ -10,9 +10,11 @@
   (:import [sim.field.continuous Continuous2D]
            [sim.util Double2D]))
 
-(declare near-factors middle-factors middle-factors-helper)
+(declare near-factors middle-factors middle-factors-helper set-community-locs! calc-community-locs)
 
 (defn set-community-locs!
+  "Insert communities into field at locations calculated so that they are spread
+  out in a lattice across the field."
   [field communities]
   (doseq [[community x-loc y-loc] (calc-community-locs
                                     (.getWidth field)
@@ -21,6 +23,8 @@
     (.setObjectLocation field community (Double2D. x-loc y-loc))))
 
 (defn calc-community-locs
+  "Calculates x and y coordinates for communities so that they are spread out
+  in a lattice across the field."
   [width height communities]
   (let [[num-comms-1 num-comms-2] (near-factors (count communities))
         [num-comms-horiz num-comms-vert] (if (< width height) ; num-comms-1 is always <= num-comms-2
@@ -28,10 +32,10 @@
                                            [num-comms-2 num-comms-1])
         comm-width (/ width num-comms-horiz)
         comm-height (/ height num-comms-vert)]
-    (for [i (range xdim)
-          j (range ydim)]
+    (for [i (range num-comms-horiz)
+          j (range num-comms-vert)]
       [(* (+ i 0.5) comm-width)    ; add 0.5 to move to center of region
-       (* (+ y 0.5) comm-height)])))
+       (* (+ j 0.5) comm-height)])))
 
 (defn near-factors
   "Finds the pair of factors of n whose product is n and whose
