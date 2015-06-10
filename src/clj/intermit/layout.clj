@@ -22,8 +22,7 @@
 
 (defn calc-community-locs
   [width height communities]
-  (let [
-        [num-comms-1 num-comms-2] (near-factors (count communities))
+  (let [[num-comms-1 num-comms-2] (near-factors (count communities))
         [num-comms-horiz num-comms-vert] (if (< width height) ; num-comms-1 is always <= num-comms-2
                                            [num-comms-1 num-comms-2]
                                            [num-comms-2 num-comms-1])
