@@ -215,7 +215,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
 
-(deftype Community [id members] ; id and members are regular data; success is an atom
+(deftype Community [id members]
   CommunityP
     (getMembers [this] members)
   Steppable
