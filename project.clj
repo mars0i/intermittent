@@ -16,7 +16,7 @@
                  [org.clojure/math.numeric-tower "0.0.4"]]
   :source-paths ["src/clj"]
   :main intermit.Sim
-  :aot [intermit.utils intermit.Sim] 
+  :aot [intermit.utils intermit.Sim intermit.layout intermit.SimWithUI] 
 )
 
 
