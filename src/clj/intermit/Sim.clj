@@ -48,7 +48,7 @@
 (def initial-num-communities 12) ; use something that factors into x and y dimensions
 (def initial-mean-indivs-per-community 10)
 (def initial-link-prob 0.3)
-(def initial-noise-stddev 0.2)
+(def initial-noise-stddev 0.02)
 (def initial-poisson-mean 1)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -114,13 +114,12 @@
                                        (into @(.neighbors this) ;   (a) neighbors, (b) 0 or more random indivs from entire pop
                                              (choose-others-from-pop rng poisson this population)))]
           (when (> @(.success best-model) @success)     ; is most successful other, better than me?
-            (reset! (.relig this) (add-tran-noise rng noise-stddev @(.relig best-model))))))) 
+            (reset! relig (add-tran-noise rng noise-stddev @(.relig best-model)))))))
   Steppable
     ;; Note that by maintaining only a single version of vars, and allowing each indiv to be stepped in random order, we allow per-tick path dependencies.
     (step [this sim-state] 
       (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
             ^intermit.Sim.InstanceState istate (.instanceState sim)]
-        ;(println this) ;(print (if (< @(.relig this) 0.5) "-" "+")) ;(print (if (< @(.success this) 0.5) "-" "+")) ; DEBUG
         (copy-relig! this sim @(.population istate))))
   Object
     (toString [this] (str id ": " @success " " @relig " " (vec (map #(.id %) @neighbors)))))
@@ -174,7 +173,9 @@
 (defn add-tran-noise
  "Add Normal noise with stddev to relig, clipping to extrema 0.0 and 1.0."
   ^double [^MersenneTwisterFast rng ^double stddev ^double relig]
-  (max 0.0 (min 1.0 (+ (* stddev ^double (.nextGaussian rng))))))
+  (max 0.0 (min 1.0
+                (+ relig
+                   (* stddev ^double (.nextGaussian rng))))))
 
 
 ;;; Initialization functions:
@@ -304,5 +305,4 @@
       (.scheduleRepeating schedule Schedule/EPOCH 1 community)) ; then communities run
     ;; non-graphical data structures needed for graphics:
     ;; graphics data structures:
-    (println "WHY ARE RELIG VALUES DROPPING TO ZERO?")
   ))
