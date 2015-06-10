@@ -91,8 +91,6 @@
                         population              ; holds all individuals
                         poisson])
 
-;(import [intermit.Sim InstanceState])
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; INDIV: class for individuals who communicate with each other.
 ;; These could be persons, villages, subaks, etc.
@@ -129,8 +127,6 @@
         (copy-relig! this sim @(.population istate))))
   Object
     (toString [this] (str id ": " success " " relig " " (vec (map #(.id %) neighbors)))))
-
-;(import [intermit.Sim Indiv])
 
 ;;; Runtime functions:
 
@@ -169,12 +165,15 @@
   ^Indiv [^MersenneTwisterFast rng models]
   (letfn [(compare-success 
             ([] nil) ; what reduce does if collection is empty
-            ([^Indiv i1 ^Indiv i2] (let [^double success1 (getSuccess i1)
-                                         ^double success2 (getSuccess i2)]
-                                     (cond (== success1 success2) (if (< (.nextDouble rng) 0.5) i1 i2) ; a rare case, but we don't ties' results to be path dependent.
-                                           (> success1 success2) i1
-                                           :else i2))))]
-          (reduce compare-success models)))
+            ([^Indiv i1 ^Indiv i2]
+             (let [^double success1 (getSuccess i1)
+                   ^double success2 (getSuccess i2)]
+               (cond (== success1 success2) (if (< ^double (.nextDouble rng) 0.5) ; a rare case, but we don't ties' results to be path dependent.
+                                              i1
+                                              i2)
+                     (> success1 success2) i1
+                     :else i2))))]
+    (reduce compare-success models)))
 
 (defn add-tran-noise
  "Add Normal noise with stddev to relig, clipping to extrema 0.0 and 1.0."
@@ -194,7 +193,6 @@
     (.nextDouble (.random sim-state))  ; success
     (.nextDouble (.random sim-state))  ; relig
     []))
-
 
 (defn binomial-link-indivs!
   "For each pair of indivs, with probability prob, make them eachothers' neighbors.
@@ -226,8 +224,6 @@
         (update-success! indiv)))
   Object
     (toString [this] (str id ": " (vec (map #(.id %) members)))))
-
-;(import [intermit.Sim Community])
 
 ;;; Runtime functions:
 
