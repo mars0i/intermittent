@@ -51,6 +51,8 @@
 (def initial-noise-stddev 0.02)
 (def initial-poisson-mean 1)
 
+(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise avg-relig)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PROTOCOLS/INTERFACES
 
@@ -96,7 +98,8 @@
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
 
-(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise avg-relig update-fields!)
+;; volatile-mutable is a bit inconvenient since it requires accessors,
+;; but it's faster than atoms, and these fields get accessed a lot.
 
 (deftype Indiv [id ^:volatile-mutable success ^:volatile-mutable relig ^:volatile-mutable neighbors]
   IndivP
