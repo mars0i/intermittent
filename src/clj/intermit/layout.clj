@@ -6,10 +6,33 @@
 ;; or one of my NetworkExperiment NetLogo models.
 
 (ns intermit.layout
-  (:require [clojure.math.numeric-tower :as m]))
+  (:require [clojure.math.numeric-tower :as m])
+  (:import [sim.field.continuous Continuous2D]
+           [sim.util Double2D]))
 
 (declare near-factors middle-factors middle-factors-helper)
 
+(defn set-community-locs!
+  [field communities]
+  (doseq [[community x-loc y-loc] (calc-community-locs
+                                    (.getWidth field)
+                                    (.getHeight field)
+                                    communities)]
+    (.setObjectLocation field community (Double2D. x-loc y-loc))))
+
+(defn calc-community-locs
+  [width height communities]
+  (let [
+        [num-comms-1 num-comms-2] (near-factors (count communities))
+        [num-comms-horiz num-comms-vert] (if (< width height) ; num-comms-1 is always <= num-comms-2
+                                           [num-comms-1 num-comms-2]
+                                           [num-comms-2 num-comms-1])
+        comm-width (/ width num-comms-horiz)
+        comm-height (/ height num-comms-vert)]
+    (for [i (range xdim)
+          j (range ydim)]
+      [(* (+ i 0.5) comm-width)    ; add 0.5 to move to center of region
+       (* (+ y 0.5) comm-height)])))
 
 (defn near-factors
   "Finds the pair of factors of n whose product is n and whose
