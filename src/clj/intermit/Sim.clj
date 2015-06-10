@@ -58,16 +58,18 @@
 ;; and allows a unified interface for finding out average culture of a community
 ;; cultural values of indivs, etc.
 
-;; This can be applied to communities as well as individuals.
-(defprotocol CulturedP
-  "Protocol for things that can have culture."
-  (getRelig [this])             ;; UI-available methods
-  (getSuccess [this]))
-
 ;; Q: Why is this in a protocol?  A: So that communities can do it to, if desired.
 (defprotocol CommunicatorP
   "Protocol for things that can communicate culture."
+  (update-success! [this])
   (copy-relig! [this sim population]))
+
+(defprotocol IndivP
+  "Protocol to allow Indiv to have mutable fields."
+  (getSuccess [this])   
+  (getRelig [this])     
+  (getNeighbors [this]) 
+  (add-neighbor! [this newval]))
 
 (defprotocol CommunityP
   "Protocol for communities."
@@ -98,11 +100,15 @@
 
 (declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise avg-relig update-fields!)
 
-(deftype Indiv [id success relig neighbors]
-  CulturedP
-    (getRelig [this] @relig)
-    (getSuccess [this] @success)
+(deftype Indiv [id ^:volatile-mutable success ^:volatile-mutable relig ^:volatile-mutable neighbors]
+  IndivP
+    (getSuccess [this] success)
+    (getRelig [this] relig)
+    (getNeighbors [this] neighbors)
+    (add-neighbor! [this new-neighbor] (set! neighbors (conj neighbors new-neighbor)))
   CommunicatorP
+    (update-success! [this]
+      (set! success (avg-relig relig neighbors)))
     (copy-relig! [this sim-state population]
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
             ^MersenneTwisterFast rng (.random sim)
@@ -111,10 +117,10 @@
             ^double noise-stddev @(.noiseStddev istate)]
         (when-let [^Indiv best-model (choose-most-successful 
                                        rng
-                                       (into @(.neighbors this) ;   (a) neighbors, (b) 0 or more random indivs from entire pop
+                                       (into neighbors ;   (a) neighbors, (b) 0 or more random indivs from entire pop
                                              (choose-others-from-pop rng poisson this population)))]
-          (when (> @(.success best-model) @success)     ; is most successful other, better than me?
-            (reset! relig (add-tran-noise rng noise-stddev @(.relig best-model)))))))
+          (when (> (getSuccess best-model) success)     ; is most successful other, better than me?
+            (set! relig (add-tran-noise rng noise-stddev (getRelig best-model)))))))
   Steppable
     ;; Note that by maintaining only a single version of vars, and allowing each indiv to be stepped in random order, we allow per-tick path dependencies.
     (step [this sim-state] 
@@ -122,7 +128,7 @@
             ^intermit.Sim.InstanceState istate (.instanceState sim)]
         (copy-relig! this sim @(.population istate))))
   Object
-    (toString [this] (str id ": " @success " " @relig " " (vec (map #(.id %) @neighbors)))))
+    (toString [this] (str id ": " success " " relig " " (vec (map #(.id %) neighbors)))))
 
 ;(import [intermit.Sim Indiv])
 
@@ -163,8 +169,8 @@
   ^Indiv [^MersenneTwisterFast rng models]
   (letfn [(compare-success 
             ([] nil) ; what reduce does if collection is empty
-            ([^Indiv i1 ^Indiv i2] (let [^double success1 @(.success i1)
-                                         ^double success2 @(.success i2)]
+            ([^Indiv i1 ^Indiv i2] (let [^double success1 (getSuccess i1)
+                                         ^double success2 (getSuccess i2)]
                                      (cond (== success1 success2) (if (< (.nextDouble rng) 0.5) i1 i2) ; a rare case, but we don't ties' results to be path dependent.
                                            (> success1 success2) i1
                                            :else i2))))]
@@ -185,9 +191,10 @@
   [sim-state]
   (Indiv.
     (str (gensym "i")) ; id
-    (atom (.nextDouble (.random sim-state)))  ; success
-    (atom (.nextDouble (.random sim-state)))  ; relig
-    (atom []))) ;  neighbors (need atom for inititialization stages, though won't change after that)
+    (.nextDouble (.random sim-state))  ; success
+    (.nextDouble (.random sim-state))  ; relig
+    []))
+
 
 (defn binomial-link-indivs!
   "For each pair of indivs, with probability prob, make them eachothers' neighbors.
@@ -196,10 +203,11 @@
   [rng prob indivs]
   (doseq [i (range (count indivs))
           j (range i)          ; lower triangle without diagonal
-          :when (< (.nextDouble rng) prob)]
-    (swap! (.neighbors (nth indivs i)) conj (nth indivs j))
-    (swap! (.neighbors (nth indivs j)) conj (nth indivs i)))
-  indivs)
+          :when (< (.nextDouble rng) prob)
+          :let [indiv-i (nth indivs i)     ; fires only if when does
+                indiv-j (nth indivs j)]]
+      (add-neighbor! indiv-i indiv-j)
+      (add-neighbor! indiv-j indiv-i)))
 
 ;; poss define other linkers here
 ;; http://www.drdobbs.com/architecture-and-design/simulating-small-world-networks/184405611
@@ -214,13 +222,8 @@
     (getMembers [this] members)
   Steppable
     (step [this sim-state]
-      ;(println "=======") (doseq [indiv members] (println indiv)) ; DEBUG
-      ;; Success comes from neighbors in this model. (if from entire community, there's no way to choose between neighbors.)
-      ;; It's lots faster to update indivs' success here than in Indiv's step fn,
-      ;; and it removes relig->success path dependence: When Communities are stepped,
-      ;; relig values for all of the indivs have already been determined for this timestep.
-      (doseq [^Indiv indiv members] 
-        (swap! (.success indiv) #(avg-relig %1 @(.neighbors indiv)))))
+      (doseq [^Indiv indiv members] ;; TODO this is a kludge; I really ought to move this to a single class 
+        (update-success! indiv)))
   Object
     (toString [this] (str id ": " (vec (map #(.id %) members)))))
 
@@ -233,7 +236,7 @@
   the given relig value."
   ^double [^double relig indivs]
   (let [size (inc (count indivs))
-        add-success (fn [^double acc ^Indiv indiv] (+ acc ^double @(.relig indiv)))]
+        add-success (fn [^double acc ^Indiv indiv] (+ acc ^double (getRelig indiv)))]
       (/ (reduce add-success relig indivs) size)))
 
 ;;; Initialization functions:
