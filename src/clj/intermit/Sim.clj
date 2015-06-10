@@ -304,7 +304,7 @@
     (doseq [indiv population]
       (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))       ; indivs run first
     (doseq [community communities]
-      (.scheduleRepeating schedule Schedule/EPOCH 1 community)) ; then communities run
+      (.scheduleRepeating schedule Schedule/EPOCH 1 community)) ; then communities run.  TODO just use a single reify for this.
     ;; non-graphical data structures needed for graphics:
     ;; graphics data structures:
   ))
