@@ -12,12 +12,12 @@
 ;;    - we setField it with the yard, i.e. the Continous2D
 ;;    - we setPortrayalForAll it with various Portrayals that apply to the indiv students, somehow
 ;; Also:
-;; * a Network (buddies)
+;; * a Network (net)
 ;;   - we add each student to the Network using addNode
 ;;   - we add (random) links to the Network using addEdge
-;; * a NetworkPortrayal2D (buddies-portrayal)
+;; * a NetworkPortrayal2D (net-portrayal)
 ;;   - we setField it with a SpatialNetwork2D, to which we pass 
-;;     the yard Continuous2D and the buddies Network.
+;;     the yard Continuous2D and the net Network.
 ;;   - we setPortryalForAll it with an edge portrayal, that applies to edges, apparently.
 ;; Also:
 ;; * we do the preceding in a method called from -start.
@@ -26,11 +26,11 @@
 
 
 (ns intermit.SimWithUI
-  ;; TODO REVISE THESE IMPORTS--PROBABLY NOT ALL NEEDED:
-  (:import [sim.portrayal.continuous ContinuousPortrayal2D]
-           [sim.portrayal.network NetworkPortrayal2D SpatialNetwork2D SimpleEdgePortrayal2D]
-           [sim.portrayal.simple OvalPortrayal2D LabelledPortrayal2D CircledPortrayal2D MovablePortrayal2D]
-           [sim.display Console Display2D]
+  (:import [sim.field.continuous Continuous2D]
+           [sim.portrayal.continuous ContinuousPortrayal2D]
+           [sim.portrayal.network NetworkPortrayal2D SpatialNetwork2D SimpleEdgePortrayal2D] ; TODO REVISE LIST
+           [sim.portrayal.simple OvalPortrayal2D LabelledPortrayal2D CircledPortrayal2D MovablePortrayal2D] ; TODO REVISE LIST
+           [sim.display Console Display2D] ; TODO REVISE LIST
            [java.awt Color])
   (:gen-class
     :name intermit.SimWithUI
@@ -43,29 +43,30 @@
               [setDisplay [sim.display.Display2D] void]
               [getDisplayFrame [] javax.swing.JFrame]
               [setDisplayFrame [javax.swing.JFrame] void]
-              [gitSpacePortrayal [] sim.portrayal.continuous.ContinuousPortrayal2D]
-              [gitLinksPortrayal [] sim.portrayal.network.NetworkPortrayal2D]
               [setupPortrayals [] void]]
     :state iState
     :init init-instance-state))
 
-
 (defn -init-instance-state
   [& args]
-  [(vec args) {:display (atom nil)
-               :display-frame (atom nil)
-               :space-portrayal (ContinuousPortrayal2D.)
-               :buddies-portrayal (NetworkPortrayal2D.)
-               }])
+  (let [field-portrayal (ContinuousPortrayal2D.)]
+    (.setField field-portrayal (Continuous2D. 1.0 400 300)) ; we only need this for the display
+    [(vec args) {:display (atom nil)
+                 :display-frame (atom nil)
+                 :field-portrayal field-portrayal
+                 :net-portrayal (NetworkPortrayal2D.)}])) ; TODO
 
 (defn -getDisplay [this] @(:display (.iState this)))
 (defn -setDisplay [this newval] (reset! (:display (.iState this)) newval))
 (defn -getDisplayFrame [this] @(:display-frame (.iState this)))
 (defn -setDisplayFrame [this newval] (reset! (:display-frame (.iState this)) newval))
-(defn -gitSpacePortrayal [this] (:space-portrayal (.iState this)))
-(defn -gitLinksPortrayal [this] (:buddies-portrayal (.iState this)))
-
 (defn -getSimulationInspectedObject [this] (.state this))
+
+(defn get-field-portrayal [this] (:field-portrayal (.iState this)))
+(defn get-field [this] (.getField (:field-portrayal (.iState this))))
+(defn get-links-portrayal [this] (:net-portrayal (.iState this)))
+(defn get-links [this] (throw (Exception. "Not yet implemented.")))
+
 
 ;; Override super fn to set it as volatile
 (defn -getInspector
@@ -91,8 +92,8 @@
 (defn -setupPortrayals
   [this]
   (let [sim (.getState this)
-        space-portrayal (.gitSpacePortrayal this)
-        buddies-portrayal (.gitLinksPortrayal this)
+        field-portrayal (.get-field-portrayal this)
+        net-portrayal (.get-links-portrayal this)
         display (.getDisplay this)
         extended-oval-portayal (proxy [OvalPortrayal2D] []
                                  (draw [student graphics info]
@@ -101,15 +102,14 @@
                                      (set! (.-paint this)  ; paint var in OvalPortrayal2D; 'this' is auto-captured by proxy
                                            (Color. agitation-shade 0 (- 255 agitation-shade)))
                                      (proxy-super draw student graphics info))))]
-    (doto space-portrayal 
-      (.setField (.gitYard sim)) ; NOTE Sim is the regular sim-state object, and this returns a Continuous2D in the Students simulation
-      (.setPortrayalForAll       ; SO MAYBE I need a Continuous2D field thing here, too?  Note it's 100x100, vs the display area that's in pixels.
-        (-> extended-oval-portayal  ; The Continuous2D is the thing that the agents are hashed into.
+    (doto field-portrayal 
+      (.setPortrayalForAll
+        (-> extended-oval-portayal
           (LabelledPortrayal2D. 5.0 nil Color/black true)
           (CircledPortrayal2D. 0 5.0 Color/green true)
           (MovablePortrayal2D.))))
-    (doto buddies-portrayal
-      (.setField (SpatialNetwork2D. (.gitYard sim) (.gitLinks sim)))
+    (doto net-portrayal
+      (.setField (SpatialNetwork2D. (get-field sim) (get-links sim)))
       (.setPortrayalForAll (SimpleEdgePortrayal2D.)))
     (doto display
       (.reset )
@@ -127,8 +127,8 @@
     (.setDisplay this display)
     (doto display
       (.setClipping false)
-      (.attach (.gitLinksPortrayal this) "Links")  ; IS THIS OK?
-      (.attach (.gitSpacePortrayal this) "Space")) ; IS THIS OK?
+      (.attach (.get-links-portrayal this) "Links")  ; IS THIS OK?
+      (.attach (.get-field-portrayal this) "Field")) ; IS THIS OK?
     ;; set up display frame:
     (.setDisplayFrame this display-frame)
     (.registerFrame controller display-frame)

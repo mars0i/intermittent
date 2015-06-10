@@ -16,7 +16,7 @@
 ;; But put intermit.Sim's methods at end, so we can type-hint references to Indiv, etc. in them.
 (ns intermit.Sim
   (:require [intermit.utils :as u])
-  (:import [sim.field.continuous Continuous2D]
+  (:import ;[sim.field.continuous Continuous2D]
            ;[sim.field.network Network Edge]
            ;[sim.util Double2D MutableDouble2D Interval]
            [sim.engine Steppable Schedule]
@@ -79,8 +79,7 @@
 ;; Need def here so we can type-hint Indiv's methods
 
 ;; Note some of these have to be atoms so that that we can allow restarting with a different setup.
-(deftype InstanceState [space ; a Continuous2D--needed for display only.
-                        numCommunities          ; number of communities
+(deftype InstanceState [numCommunities          ; number of communities
                         meanIndivsPerCommunity  ; mean or exact number of indivs in each
                         linkProb
                         noiseStddev
@@ -244,8 +243,7 @@
 (defn -init-instance-state
   "Initializes instance-state when an instance of class Sim is created."
   [seed]
-  [[seed] (InstanceState. (Continuous2D. 1.0 400 300)    ; space
-                          (atom initial-num-communities)
+  [[seed] (InstanceState. (atom initial-num-communities)
                           (atom initial-mean-indivs-per-community) 
                           (atom initial-link-prob)
                           (atom initial-noise-stddev)
