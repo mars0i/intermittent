@@ -60,21 +60,17 @@
 ;; and allows a unified interface for finding out average culture of a community
 ;; cultural values of indivs, etc.
 
-;; Q: Why is this in a protocol?  A: So that communities can do it to, if desired.
-(defprotocol CommunicatorP
-  "Protocol for things that can communicate culture."
-  (update-success! [this])
-  (copy-relig! [this sim population]))
-
 (defprotocol IndivP
-  "Protocol to allow Indiv to have mutable fields."
+  "Protocol for Indivs."
   (getSuccess [this])   
   (getRelig [this])     
   (getNeighbors [this]) 
-  (add-neighbor! [this newval]))
+  (add-neighbor! [this newval])
+  (update-success! [this])
+  (copy-relig! [this sim population]))
 
 (defprotocol CommunityP
-  "Protocol for communities."
+  "Protocol for Communities."
   (getMembers [this]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -107,7 +103,6 @@
     (getRelig [this] relig)
     (getNeighbors [this] neighbors)
     (add-neighbor! [this new-neighbor] (set! neighbors (conj neighbors new-neighbor)))
-  CommunicatorP
     (update-success! [this]
       (set! success (avg-relig relig neighbors)))
     (copy-relig! [this sim-state population]
@@ -132,6 +127,14 @@
     (toString [this] (str id ": " success " " relig " " (vec (map #(.id %) neighbors)))))
 
 ;;; Runtime functions:
+
+(defn avg-relig
+  "Returns the average of relig values of a collection of indivs and
+  the given relig value."
+  ^double [^double relig indivs]
+  (let [size (inc (count indivs))
+        add-success (fn [^double acc ^Indiv indiv] (+ acc ^double (getRelig indiv)))]
+      (/ (reduce add-success relig indivs) size)))
 
 (defn choose-others-from-pop
   "Randomly sample a Poisson-distributed number of indivs from population,
@@ -185,7 +188,6 @@
                 (+ relig
                    (* stddev ^double (.nextGaussian rng))))))
 
-
 ;;; Initialization functions:
 
 (defn make-indiv
@@ -221,22 +223,10 @@
 (deftype Community [id members]
   CommunityP
     (getMembers [this] members)
-  Steppable
-    (step [this sim-state]
-      (doseq [^Indiv indiv members] ;; TODO this is a kludge; I really ought to move this to a single class 
-        (update-success! indiv)))
   Object
     (toString [this] (str id ": " (vec (map #(.id %) members)))))
 
 ;;; Runtime functions:
-
-(defn avg-relig
-  "Returns the average of relig values of a collection of indivs and
-  the given relig value."
-  ^double [^double relig indivs]
-  (let [size (inc (count indivs))
-        add-success (fn [^double acc ^Indiv indiv] (+ acc ^double (getRelig indiv)))]
-      (/ (reduce add-success relig indivs) size)))
 
 ;;; Initialization functions:
 
@@ -301,10 +291,12 @@
     (reset! (.poisson instance-state) (Poisson. @(.poissonMean instance-state) (.random this)))
     (reset! (.communities instance-state) communities)
     (reset! (.population instance-state) population)
-    (doseq [indiv population]
-      (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))       ; indivs run first
-    (doseq [community communities]
-      (.scheduleRepeating schedule Schedule/EPOCH 1 community)) ; then communities run.  TODO just use a single reify for this.
+    (doseq [indiv population] (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))  ; indivs' step fns run first to communicate relig
+    (.scheduleRepeating schedule Schedule/EPOCH 1            ; then update success fields afterwards
+                        (reify Steppable 
+                          (step [this sim-state]
+                            (doseq [^Indiv indiv population] (update-success! indiv)))))
+
     ;; non-graphical data structures needed for graphics:
     ;; graphics data structures:
   ))
