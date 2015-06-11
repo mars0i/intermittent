@@ -15,13 +15,12 @@
   :dependencies [[org.clojure/clojure "1.7.0-RC1"]
                  [org.clojure/math.numeric-tower "0.0.4"]]
   :source-paths ["src/clj"]
+  :jvm-opts ["-Xmx2g"]
   :main intermit.Sim
   :aot [intermit.utils intermit.Sim intermit.layout intermit.SimWithUI] 
   :profiles {:gui   {:main intermit.SimWithUI} ; execute this with 'lein with-profile gui   run'
              :nogui {:main intermit.Sim}})     ; execute this with 'lein with-profile nogui run'
 
-
-  ;:jvm-opts ["-Xmx2g"]
   ; jvm-opts ["-Xms1g"]
   ;:jvm-opts ["-Dclojure.compiler.disable-locals-clearing=true"] ; ???: FASTER, and may be useful to debuggers. see https://groups.google.com/forum/#!msg/clojure/8a1FjNvh-ZQ/DzqDz4oKMj0J
   ;:jvm-opts ["-XX:+TieredCompilation" "-XX:TieredStopAtLevel=1"] ; setting this to 1 will produce faster startup but will disable extra optimization of long-running processes
