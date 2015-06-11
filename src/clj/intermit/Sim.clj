@@ -265,6 +265,9 @@
   (reset! (.poissonMean (.instanceState this) newval)) ; store it so that UI can display its current value
   (.setMean (.poisson (.instanceState this)) newval))  ; allows changing value during the middle of a run.
 
+(defn get-communities [this] @(.communities (.instanceState this)))
+(defn get-population [this] @(.population (.instanceState this)))
+
 (defn -main
   [& args]
   (sim.engine.SimState/doLoop intermit.Sim (into-array String args))
