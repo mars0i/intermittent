@@ -17,7 +17,8 @@
   :source-paths ["src/clj"]
   :main intermit.Sim
   :aot [intermit.utils intermit.Sim intermit.layout intermit.SimWithUI] 
-)
+  :profiles {:gui   {:main intermit.SimWithUI} ; execute this with 'lein with-profile gui   run'
+             :nogui {:main intermit.Sim}})     ; execute this with 'lein with-profile nogui run'
 
 
   ;:jvm-opts ["-Xmx2g"]
