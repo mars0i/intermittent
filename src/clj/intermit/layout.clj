@@ -6,7 +6,8 @@
 ;; or one of my NetworkExperiment NetLogo models.
 
 (ns intermit.layout
-  (:require [clojure.math.numeric-tower :as m])
+  (:require [clojure.math.numeric-tower :as m]
+            [intermit.utils :as u])
   (:import [sim.field.continuous Continuous2D]
            [sim.util Double2D]))
 
@@ -16,10 +17,9 @@
   "Insert communities into field at locations calculated so that they are spread
   out in a lattice across the field."
   [field communities]
-  (doseq [[community x-loc y-loc] (calc-community-locs
-                                    (.getWidth field)
-                                    (.getHeight field)
-                                    communities)]
+  (doseq [[community x-loc y-loc] (calc-community-locs (.getWidth field)
+                                                       (.getHeight field)
+                                                       communities)]
     (.setObjectLocation field community (Double2D. x-loc y-loc))))
 
 (defn calc-community-locs
@@ -34,7 +34,8 @@
         comm-height (/ height num-comms-vert)]
     (for [i (range num-comms-horiz)
           j (range num-comms-vert)]
-      [(* (+ i 0.5) comm-width)    ; add 0.5 to move to center of region
+      [(nth communities (+ i (* j num-comms-horiz)))
+       (* (+ i 0.5) comm-width)      ; add 0.5 to move to center of region
        (* (+ j 0.5) comm-height)])))
 
 (defn near-factors
