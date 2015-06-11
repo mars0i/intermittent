@@ -26,7 +26,10 @@
 
 
 (ns intermit.SimWithUI
-  (:import [sim.field.continuous Continuous2D]
+  (:require [intermit.layout :as lay]
+            [intermit.Sim :as s])
+  (:import [intermit Sim]
+           [sim.field.continuous Continuous2D]
            [sim.portrayal.continuous ContinuousPortrayal2D]
            [sim.portrayal.network NetworkPortrayal2D SpatialNetwork2D SimpleEdgePortrayal2D] ; TODO REVISE LIST
            [sim.portrayal.simple OvalPortrayal2D LabelledPortrayal2D CircledPortrayal2D MovablePortrayal2D] ; TODO REVISE LIST
@@ -50,7 +53,7 @@
 (defn -init-instance-state
   [& args]
   (let [field-portrayal (ContinuousPortrayal2D.)]
-    (.setField field-portrayal (Continuous2D. 1.0 400 300)) ; we only need this for the display
+    (.setField field-portrayal (Continuous2D. 1.0 125 100)) ; we only need this for the display
     [(vec args) {:display (atom nil)
                  :display-frame (atom nil)
                  :field-portrayal field-portrayal
@@ -92,25 +95,22 @@
 (defn -setupPortrayals
   [this]
   (let [sim (.getState this)
-        field-portrayal (.get-field-portrayal this)
-        net-portrayal (.get-links-portrayal this)
+        field-portrayal (get-field-portrayal this)
+        field (.getField field-portrayal)
+        ; net-portrayal (get-links-portrayal this)
         display (.getDisplay this)
-        extended-oval-portayal (proxy [OvalPortrayal2D] []
-                                 (draw [student graphics info]
-                                   (let [agitation-shade (min 255 (int 
-                                                                    (* (.getAgitation student) (/ 255 10.0))))]
-                                     (set! (.-paint this)  ; paint var in OvalPortrayal2D; 'this' is auto-captured by proxy
-                                           (Color. agitation-shade 0 (- 255 agitation-shade)))
-                                     (proxy-super draw student graphics info))))]
+        communities (s/get-communities sim)]
+
+    (lay/set-community-locs! field communities)
     (doto field-portrayal 
       (.setPortrayalForAll
-        (-> extended-oval-portayal
+        (-> (OvalPortrayal2D.)
           (LabelledPortrayal2D. 5.0 nil Color/black true)
           (CircledPortrayal2D. 0 5.0 Color/green true)
           (MovablePortrayal2D.))))
-    (doto net-portrayal
-      (.setField (SpatialNetwork2D. (get-field sim) (get-links sim)))
-      (.setPortrayalForAll (SimpleEdgePortrayal2D.)))
+    ; (doto net-portrayal
+    ;   (.setField (SpatialNetwork2D. (get-field sim) (get-links sim)))
+      ;   (.setPortrayalForAll (SimpleEdgePortrayal2D.)))
     (doto display
       (.reset )
       (.setBackdrop Color/white)
@@ -122,13 +122,13 @@
 (defn -init
   [this controller] ; controller is called c in Java version
   (.superInit this controller)
-  (let [display (Display2D. 800 800 this)
+  (let [display (Display2D. 800 600 this)
         display-frame (.createFrame display)]
     (.setDisplay this display)
     (doto display
       (.setClipping false)
-      (.attach (.get-links-portrayal this) "Links")  ; IS THIS OK?
-      (.attach (.get-field-portrayal this) "Field")) ; IS THIS OK?
+      ;(.attach (get-links-portrayal this) "Links")  ; IS THIS OK?
+      (.attach (get-field-portrayal this) "Field")) ; IS THIS OK?
     ;; set up display frame:
     (.setDisplayFrame this display-frame)
     (.registerFrame controller display-frame)
