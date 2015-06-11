@@ -22,6 +22,14 @@
                                                        communities)]
     (.setObjectLocation field community (Double2D. x-loc y-loc))))
 
+(defn calc-indiv-locs
+  [community space-size]
+  (let [members (get-members community)
+        comm-size (count members)]
+    ;; divide 2pi by comm-size ...
+    ;; or maybe do a little lattice??
+  )
+
 (defn calc-community-locs
   "Calculates x and y coordinates for communities so that they are spread out
   in a lattice across the field."
