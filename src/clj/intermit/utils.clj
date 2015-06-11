@@ -17,3 +17,8 @@
  "Returns a lazy sequence like coll, but with the nth item removed."
   [coll n]
   (concat (take n coll) (drop (inc n) coll)))
+
+(defn domap
+  "Works like map, but only for side effects."
+  ([f coll] (doseq [e coll] (f e)))
+  ([f coll1 & colls] (mapv f (cons coll1 colls)) nil))
