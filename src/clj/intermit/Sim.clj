@@ -70,8 +70,7 @@
   (copy-relig! [this sim population]))
 
 (defprotocol CommunityP
-  "Protocol for Communities."
-  (getMembers [this]))
+  (get-members [this]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; INSTANCESTATE
@@ -221,9 +220,10 @@
 
 (deftype Community [id members]
   CommunityP
-    (getMembers [this] members)
+    (get-members [this] members) ; so I don't have to remember whether I used atoms
   Object
     (toString [this] (str id ": " (vec (map #(.id %) members)))))
+
 
 ;;; Runtime functions:
 
@@ -265,6 +265,7 @@
   (reset! (.poissonMean (.instanceState this) newval)) ; store it so that UI can display its current value
   (.setMean (.poisson (.instanceState this)) newval))  ; allows changing value during the middle of a run.
 
+;; Useful since the fields contain atoms:
 (defn get-communities [this] @(.communities (.instanceState this)))
 (defn get-population [this] @(.population (.instanceState this)))
 
@@ -286,7 +287,7 @@
         indivs-per-community @(.meanIndivsPerCommunity instance-state)
         communities (vec (repeatedly num-communities
                                        #(make-community-of-indivs this indivs-per-community)))
-        population (vec (mapcat getMembers communities))]
+        population (vec (mapcat get-members communities))]
     ;; set up core simulation structures (the stuff that runs even in headless mode)
     ;(println (map #(identity @(.relig %)) population))
     (reset! (.poisson instance-state) (Poisson. @(.poissonMean instance-state) (.random this)))
