@@ -18,9 +18,10 @@
   "Insert communities into field at locations calculated so that they are spread
   out in a lattice across the field."
   [field communities]
-  (doseq [[community x-loc y-loc] (lattice-locs (.getWidth field)
-                                                       (.getHeight field)
-                                                       communities)]
+  (doseq [[community x-loc y-loc] (lattice-locs 0.5 
+                                                (.getWidth field)
+                                                (.getHeight field)
+                                                communities)]
     (.setObjectLocation field community (Double2D. x-loc y-loc))))
 
 (defn calc-indiv-locs
@@ -33,8 +34,9 @@
 
 (defn lattice-locs
   "Calculates x and y coordinates for communities so that they are spread out
-  in a lattice across the field."
-  [width height communities]
+  in a lattice across the field, with each object shifted by offset-factor 
+  within its position in both dimensions."
+  [offset-factor width height communities]
   (let [[num-comms-1 num-comms-2] (near-factors (count communities))
         [num-comms-horiz num-comms-vert] (if (< width height) ; num-comms-1 is always <= num-comms-2
                                            [num-comms-1 num-comms-2]
@@ -44,8 +46,8 @@
     (for [i (range num-comms-horiz)
           j (range num-comms-vert)]
       [(nth communities (+ i (* j num-comms-horiz)))
-       (* (+ i 0.5) comm-width)      ; add 0.5 to move to center of region
-       (* (+ j 0.5) comm-height)])))
+       (* (+ i offset-factor) comm-width)      ; add 0.5 to move to center of region
+       (* (+ j offset-factor) comm-height)])))
 
 (defn near-factors
   "Finds the pair of factors of n whose product is n and whose
