@@ -101,7 +101,8 @@
         display (.getDisplay this)
         communities (s/get-communities sim)]
 
-    (lay/set-communities-locs! field communities)
+    (lay/set-community-locs! field communities)
+    (lay/set-indiv-locs! field communities)
     (doto field-portrayal 
       (.setPortrayalForAll
         (-> (OvalPortrayal2D.)

@@ -12,9 +12,10 @@
   (:import [sim.field.continuous Continuous2D]
            [sim.util Double2D]))
 
-(declare near-factors middle-factors middle-factors-helper set-community-locs! lattice-locs)
+(declare near-factors middle-factors middle-factors-helper set-community-locs! set-indiv-locs! indiv-locs lattice-locs)
 
-(defn set-communities-locs!
+;; Might be unused.
+(defn set-community-locs!
   "Insert communities into field at locations calculated so that they are spread
   out in a lattice across the field."
   [field communities]
@@ -24,13 +25,24 @@
                                                 communities)]
     (.setObjectLocation field community (Double2D. x-loc y-loc))))
 
-(defn calc-indiv-locs
-  [community space-size]
-  (let [members (s/get-members community)
-        comm-size (count members)]
-    ;; divide 2pi by comm-size ...
-    ;; or maybe do a little lattice??
-  ))
+(defn set-indiv-locs!
+  "Insert indivs into field at locations calculated so that they're spread out
+  in a lattice of lattices across the field."
+  [field communities]
+  (doseq [[indiv x-loc y-loc] (indiv-locs (.getWidth field) (.getHeight field) communities)]
+    (.setObjectLocation field indiv (Double2D. x-loc y-loc))))
+
+(defn indiv-locs
+  [overall-width overall-height communities]
+  (let [comm-locs (lattice-locs 0.5 overall-width overall-height communities) ; calc locs of communities
+        [[_ x1 y1] [_ x2 y2]] comm-locs ; just get first two elements for next calculations
+        comm-width  (- x2 x1)
+        comm-height (- y2 y1)]
+    (apply concat ; turn seq of seqs into seq
+           (for [[community comm-x comm-y] comm-locs  ; now we use all of the community locs
+                 :let [indivs (s/get-members community)]]
+             (for [[indiv indiv-x indiv-y] (lattice-locs 0.5 comm-width comm-height indivs)] ; calculate relative locs w/in a small region
+               [indiv (+ comm-x indiv-x) (+ comm-y indiv-y)]))))) ; shifts the small region to community's location
 
 (defn lattice-locs
   "Calculates x and y coordinates for communities so that they are spread out
