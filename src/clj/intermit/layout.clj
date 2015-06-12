@@ -14,7 +14,7 @@
 
 (declare near-factors middle-factors middle-factors-helper set-community-locs! lattice-locs)
 
-(defn set-community-locs!
+(defn set-communities-locs!
   "Insert communities into field at locations calculated so that they are spread
   out in a lattice across the field."
   [field communities]
