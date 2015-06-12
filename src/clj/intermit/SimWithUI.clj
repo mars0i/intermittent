@@ -99,7 +99,7 @@
         field (.getField field-portrayal)
         ; net-portrayal (get-links-portrayal this)
         display (.getDisplay this)
-        communities (get-communities sim)]
+        communities (s/get-communities sim)]
 
     (lay/set-community-locs! field communities)
     (doto field-portrayal 

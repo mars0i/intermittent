@@ -7,30 +7,31 @@
 
 (ns intermit.layout
   (:require [clojure.math.numeric-tower :as m]
-            [intermit.utils :as u])
+            [intermit.utils :as u]
+            [intermit.Sim :as s])
   (:import [sim.field.continuous Continuous2D]
            [sim.util Double2D]))
 
-(declare near-factors middle-factors middle-factors-helper set-community-locs! calc-community-locs)
+(declare near-factors middle-factors middle-factors-helper set-community-locs! lattice-locs)
 
 (defn set-community-locs!
   "Insert communities into field at locations calculated so that they are spread
   out in a lattice across the field."
   [field communities]
-  (doseq [[community x-loc y-loc] (calc-community-locs (.getWidth field)
+  (doseq [[community x-loc y-loc] (lattice-locs (.getWidth field)
                                                        (.getHeight field)
                                                        communities)]
     (.setObjectLocation field community (Double2D. x-loc y-loc))))
 
 (defn calc-indiv-locs
   [community space-size]
-  (let [members (get-members community)
+  (let [members (s/get-members community)
         comm-size (count members)]
     ;; divide 2pi by comm-size ...
     ;; or maybe do a little lattice??
-  )
+  ))
 
-(defn calc-community-locs
+(defn lattice-locs
   "Calculates x and y coordinates for communities so that they are spread out
   in a lattice across the field."
   [width height communities]
