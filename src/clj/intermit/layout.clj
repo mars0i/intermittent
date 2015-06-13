@@ -12,6 +12,8 @@
   (:import [sim.field.continuous Continuous2D]
            [sim.util Double2D]))
 
+(def comm-shrink-factor 0.5)
+
 (declare near-factors middle-factors middle-factors-helper set-community-locs! set-indiv-locs! indiv-locs lattice-locs)
 
 ;; Might be unused.
@@ -19,10 +21,7 @@
   "Insert communities into field at locations calculated so that they are spread
   out in a lattice across the field."
   [field communities]
-  (let [[[_ _] locs] (lattice-locs 0.5 
-                                   (.getWidth field)
-                                   (.getHeight field)
-                                   communities)]
+  (let [[_ _ locs] (lattice-locs 0.5 0.5 (.getWidth field) (.getHeight field) communities)]
     (doseq [[community x-loc y-loc] locs]
       (.setObjectLocation field community (Double2D. x-loc y-loc)))))
 
@@ -31,15 +30,24 @@
   in a lattice of lattices across the field."
   [field communities]
   (doseq [[indiv x-loc y-loc] (indiv-locs (.getWidth field) (.getHeight field) communities)]
-    (.setObjectLocation field indiv (Double2D. x-loc y-loc))))
+      (.setObjectLocation field indiv (Double2D. x-loc y-loc))))
 
+;; TODO NOT SETTING RELATIVE LOC OF GROUP CORRECTLY.
 (defn indiv-locs
   [overall-width overall-height communities]
-  (let [[[comm-width comm-height] comm-locs] (lattice-locs 0.5 overall-width overall-height communities)] ; calc locs of communities
+  (println overall-width overall-height)
+  (let [[comm-width* comm-height* comm-locs] (lattice-locs 0.5 0.5 overall-width overall-height communities) ; calc locs of communities
+        comm-width (* comm-shrink-factor comm-width*)
+        comm-height (* comm-shrink-factor comm-height*)]
+    (println comm-width " " comm-height)
     (apply concat ; turn seq of seqs into seq
            (for [[community comm-x comm-y] comm-locs  ; now we use all of the community locs
                  :let [indivs (s/get-members community)
-                       [[_ _] indiv-locs] (lattice-locs 0.5 comm-width comm-height indivs)]] ; calculate relative locs w/in a small region
+                       [_ _ indiv-locs] (lattice-locs (* -0.0625 comm-width)    ; calculate relative locs w/in a small region
+                                                      (* -0.0625 comm-height)  ; TODO NOT RIGHT
+                                                      comm-width
+                                                      comm-height
+                                                      indivs)]]
              (for [[indiv indiv-x indiv-y] indiv-locs]
                [indiv (+ comm-x indiv-x) (+ comm-y indiv-y)]))))) ; shifts the small region to community's location
 
@@ -49,19 +57,20 @@
   within its position in both dimensions.  Returns a 2-element sequence, where
   the first element is a pair [community-width community-height], and the second
   element is a sequence of triplets of the form [community, x-coord, y-coor]."
-  [offset-factor width height things]
-  (let [[num-things-1 num-things-2] (near-factors (count things))
-        [num-things-horiz num-things-vert] (if (< width height) ; num-things-1 is always <= num-things-2
-                                             [num-things-1 num-things-2]
-                                             [num-things-2 num-things-1])
-        thing-width (/ width num-things-horiz)
-        thing-height (/ height num-things-vert)]
-    [[thing-width thing-height]
-     (for [i (range num-things-horiz)
-           j (range num-things-vert)]
-       [(nth things (+ i (* j num-things-horiz)))
-        (* (+ i offset-factor) thing-width)      ; add 0.5 to move to center of region
-        (* (+ j offset-factor) thing-height)])]))
+  [x-offset-factor y-offset-factor width height things]
+  (let [[num-a num-b] (near-factors (count things))
+        [num-horiz num-vert] (if (< width height) [num-a num-b] [num-b num-a]); num-a is always <= num-b
+        thing-width (/ width num-horiz)
+        thing-height (/ height num-vert)]
+    [thing-width   ; Let caller know size of elements, in case we
+     thing-height  ;   want to put things inside them.
+     (for [i (range num-horiz)  ; coords to put arrange things in a lattice
+           j (range num-vert)
+           :let [thing (get things (+ i (* j num-horiz)))] ; When num elts doesn't factor, near-factor returns
+           :when thing]                                    ;  factors for count+1, so last elt will be missing.
+       [thing
+        (* (+ i x-offset-factor) thing-width)
+        (* (+ j y-offset-factor) thing-height)])]))
 
 (defn near-factors
   "Finds the pair of factors of n whose product is n and whose
