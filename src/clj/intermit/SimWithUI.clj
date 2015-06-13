@@ -103,7 +103,7 @@
         display (.getDisplay this)
         communities (s/get-communities sim)]
 
-    (lay/set-community-locs! field communities)
+    ;(lay/set-community-locs! field communities)
     (lay/set-indiv-locs! field communities)
     (.setPortrayalForClass field-portrayal intermit.Sim.Community (OvalPortrayal2D. (Color. 255 0 0) 2.0))
     (.setPortrayalForClass field-portrayal intermit.Sim.Indiv (OvalPortrayal2D. (Color. 0 0 255) 1.5))
