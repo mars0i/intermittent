@@ -90,6 +90,8 @@
 (defn -start
   [this]
   (.superStart this)
+  (.clear (get-field this)) ; TODO Can I put this here?
+  ;(.clear (get-links this)) ; TODO Can I put this here?
   (.setupPortrayals this))
 
 (defn -setupPortrayals
@@ -103,15 +105,10 @@
 
     (lay/set-community-locs! field communities)
     (lay/set-indiv-locs! field communities)
-    (doto field-portrayal 
-      (.setPortrayalForAll
-        (-> (OvalPortrayal2D.)
-          (LabelledPortrayal2D. 5.0 nil Color/black true)
-          (CircledPortrayal2D. 0 5.0 Color/green true)
-          (MovablePortrayal2D.))))
-    ; (doto net-portrayal
-    ;   (.setField (SpatialNetwork2D. (get-field sim) (get-links sim)))
-      ;   (.setPortrayalForAll (SimpleEdgePortrayal2D.)))
+    (.setPortrayalForClass field-portrayal intermit.Sim.Community (OvalPortrayal2D. (Color. 255 0 0) 2.0))
+    (.setPortrayalForClass field-portrayal intermit.Sim.Indiv (OvalPortrayal2D. (Color. 0 0 255) 2.0))
+    ;(doto field-portrayal (.setPortrayalForAll (-> (OvalPortrayal2D.) (LabelledPortrayal2D. 5.0 nil Color/black true) (CircledPortrayal2D. 0 5.0 Color/green true) (MovablePortrayal2D.))))
+    ; (doto net-portrayal (.setField (SpatialNetwork2D. (get-field sim) (get-links sim))) (.setPortrayalForAll (SimpleEdgePortrayal2D.)))
     (doto display
       (.reset )
       (.setBackdrop Color/white)
