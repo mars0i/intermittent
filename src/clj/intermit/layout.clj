@@ -19,11 +19,12 @@
   "Insert communities into field at locations calculated so that they are spread
   out in a lattice across the field."
   [field communities]
-  (doseq [[community x-loc y-loc] (lattice-locs 0.5 
-                                                (.getWidth field)
-                                                (.getHeight field)
-                                                communities)]
-    (.setObjectLocation field community (Double2D. x-loc y-loc))))
+  (let [[[_ _] locs] (lattice-locs 0.5 
+                                   (.getWidth field)
+                                   (.getHeight field)
+                                   communities)]
+    (doseq [[community x-loc y-loc] locs]
+      (.setObjectLocation field community (Double2D. x-loc y-loc)))))
 
 (defn set-indiv-locs!
   "Insert indivs into field at locations calculated so that they're spread out
@@ -34,32 +35,33 @@
 
 (defn indiv-locs
   [overall-width overall-height communities]
-  (let [comm-locs (lattice-locs 0.5 overall-width overall-height communities) ; calc locs of communities
-        [[_ x1 y1] [_ x2 y2]] comm-locs ; just get first two elements for next calculations
-        comm-width  (- x2 x1)
-        comm-height (- y2 y1)]
+  (let [[[comm-width comm-height] comm-locs] (lattice-locs 0.5 overall-width overall-height communities)] ; calc locs of communities
     (apply concat ; turn seq of seqs into seq
            (for [[community comm-x comm-y] comm-locs  ; now we use all of the community locs
-                 :let [indivs (s/get-members community)]]
-             (for [[indiv indiv-x indiv-y] (lattice-locs 0.5 comm-width comm-height indivs)] ; calculate relative locs w/in a small region
+                 :let [indivs (s/get-members community)
+                       [[_ _] indiv-locs] (lattice-locs 0.5 comm-width comm-height indivs)]] ; calculate relative locs w/in a small region
+             (for [[indiv indiv-x indiv-y] indiv-locs]
                [indiv (+ comm-x indiv-x) (+ comm-y indiv-y)]))))) ; shifts the small region to community's location
 
 (defn lattice-locs
   "Calculates x and y coordinates for communities so that they are spread out
   in a lattice across the field, with each object shifted by offset-factor 
-  within its position in both dimensions."
-  [offset-factor width height communities]
-  (let [[num-comms-1 num-comms-2] (near-factors (count communities))
-        [num-comms-horiz num-comms-vert] (if (< width height) ; num-comms-1 is always <= num-comms-2
-                                           [num-comms-1 num-comms-2]
-                                           [num-comms-2 num-comms-1])
-        comm-width (/ width num-comms-horiz)
-        comm-height (/ height num-comms-vert)]
-    (for [i (range num-comms-horiz)
-          j (range num-comms-vert)]
-      [(nth communities (+ i (* j num-comms-horiz)))
-       (* (+ i offset-factor) comm-width)      ; add 0.5 to move to center of region
-       (* (+ j offset-factor) comm-height)])))
+  within its position in both dimensions.  Returns a 2-element sequence, where
+  the first element is a pair [community-width community-height], and the second
+  element is a sequence of triplets of the form [community, x-coord, y-coor]."
+  [offset-factor width height things]
+  (let [[num-things-1 num-things-2] (near-factors (count things))
+        [num-things-horiz num-things-vert] (if (< width height) ; num-things-1 is always <= num-things-2
+                                             [num-things-1 num-things-2]
+                                             [num-things-2 num-things-1])
+        thing-width (/ width num-things-horiz)
+        thing-height (/ height num-things-vert)]
+    [[thing-width thing-height]
+     (for [i (range num-things-horiz)
+           j (range num-things-vert)]
+       [(nth things (+ i (* j num-things-horiz)))
+        (* (+ i offset-factor) thing-width)      ; add 0.5 to move to center of region
+        (* (+ j offset-factor) thing-height)])]))
 
 (defn near-factors
   "Finds the pair of factors of n whose product is n and whose
