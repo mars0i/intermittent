@@ -12,7 +12,9 @@
   (:import [sim.field.continuous Continuous2D]
            [sim.util Double2D]))
 
-(def comm-shrink-factor 0.5)
+(def community-shrink 0.5)
+(def community-offset 1.0)
+(def community-offset-factor 1.25)
 
 (declare near-factors middle-factors middle-factors-helper set-community-locs! set-indiv-locs! indiv-locs lattice-locs)
 
@@ -21,30 +23,30 @@
   "Insert communities into field at locations calculated so that they are spread
   out in a lattice across the field."
   [field communities]
-  (let [[_ _ locs] (lattice-locs 0.5 0.5 (.getWidth field) (.getHeight field) communities)]
+  (let [[_ _ locs] (lattice-locs 0.0 0.0 (.getWidth field) (.getHeight field) communities)] ; TODO offset parameters need adjustment
     (doseq [[community x-loc y-loc] locs]
       (.setObjectLocation field community (Double2D. x-loc y-loc)))))
 
 (defn set-indiv-locs!
   "Insert indivs into field at locations calculated so that they're spread out
-  in a lattice of lattices across the field."
+  in a lattice of lattices across the field.  (Uses communities merely to organize
+  indivs; doesn't set locations of communities.)"
   [field communities]
   (doseq [[indiv x-loc y-loc] (indiv-locs (.getWidth field) (.getHeight field) communities)]
       (.setObjectLocation field indiv (Double2D. x-loc y-loc))))
 
-;; TODO NOT SETTING RELATIVE LOC OF GROUP CORRECTLY.
 (defn indiv-locs
   [overall-width overall-height communities]
   (println overall-width overall-height)
-  (let [[comm-width* comm-height* comm-locs] (lattice-locs 0.5 0.5 overall-width overall-height communities) ; calc locs of communities
-        comm-width (* comm-shrink-factor comm-width*)
-        comm-height (* comm-shrink-factor comm-height*)]
+  (let [[comm-width* comm-height* comm-locs] (lattice-locs overall-width overall-height communities) ; calc 0-offset locs of communities
+        comm-width (* community-shrink comm-width*)
+        comm-height (* community-shrink comm-height*)]
     (println comm-width " " comm-height)
-    (apply concat ; turn seq of seqs into seq
+    (apply concat  ; seq of seqs into seq
            (for [[community comm-x comm-y] comm-locs  ; now we use all of the community locs
                  :let [indivs (s/get-members community)
-                       [_ _ indiv-locs] (lattice-locs (* -0.0625 comm-width)    ; calculate relative locs w/in a small region
-                                                      (* -0.0625 comm-height)  ; TODO NOT RIGHT
+                       [_ _ indiv-locs] (lattice-locs community-offset
+                                                      community-offset-factor
                                                       comm-width
                                                       comm-height
                                                       indivs)]]
@@ -57,7 +59,8 @@
   within its position in both dimensions.  Returns a 2-element sequence, where
   the first element is a pair [community-width community-height], and the second
   element is a sequence of triplets of the form [community, x-coord, y-coor]."
-  [x-offset-factor y-offset-factor width height things]
+  ([width height things] (lattice-locs 0.0 0.0 width height things))
+  ([offset offset-factor width height things]
   (let [[num-a num-b] (near-factors (count things))
         [num-horiz num-vert] (if (< width height) [num-a num-b] [num-b num-a]); num-a is always <= num-b
         thing-width (/ width num-horiz)
@@ -69,8 +72,8 @@
            :let [thing (get things (+ i (* j num-horiz)))] ; When num elts doesn't factor, near-factor returns
            :when thing]                                    ;  factors for count+1, so last elt will be missing.
        [thing
-        (* (+ i x-offset-factor) thing-width)
-        (* (+ j y-offset-factor) thing-height)])]))
+        (+ offset (* (+ i offset-factor) thing-width))
+        (+ offset (* (+ j offset-factor) thing-height))])])))
 
 (defn near-factors
   "Finds the pair of factors of n whose product is n and whose
