@@ -46,7 +46,7 @@
 ;; DEFAULTS AND GENERAL UTILITY CODE
 
 (def initial-num-communities 12) ; use something that factors into x and y dimensions
-(def initial-mean-indivs-per-community 9)
+(def initial-mean-indivs-per-community 12)
 (def initial-link-prob 0.3)
 (def initial-noise-stddev 0.02)
 (def initial-poisson-mean 1)
