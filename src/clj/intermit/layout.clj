@@ -37,11 +37,9 @@
 
 (defn indiv-locs
   [overall-width overall-height communities]
-  (println overall-width overall-height)
   (let [[comm-width* comm-height* comm-locs] (lattice-locs overall-width overall-height communities) ; calc 0-offset locs of communities
         comm-width (* community-shrink comm-width*)
         comm-height (* community-shrink comm-height*)]
-    (println comm-width " " comm-height)
     (apply concat  ; seq of seqs into seq
            (for [[community comm-x comm-y] comm-locs  ; now we use all of the community locs
                  :let [indivs (s/get-members community)
