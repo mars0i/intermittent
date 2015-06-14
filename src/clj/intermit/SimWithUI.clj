@@ -112,7 +112,7 @@
     (lay/set-indiv-locs! field communities)
     (.setPortrayalForClass field-portrayal intermit.Sim.Community (OvalPortrayal2D. (Color. 255 0 0) 2.0))
     (.setPortrayalForClass field-portrayal intermit.Sim.Indiv (OvalPortrayal2D. (Color. 0 0 255) 1.5))
-    (.setPortrayalForAll net-portrayal (SimpleEdgePortrayal2D.)))
+    (.setPortrayalForAll net-portrayal (SimpleEdgePortrayal2D.))
     (doto display
       (.reset )
       (.setBackdrop Color/white)
