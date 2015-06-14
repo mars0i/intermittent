@@ -13,7 +13,7 @@
            [sim.util Double2D]))
 
 (def community-shrink 0.5)
-(def community-offset 1.0)
+(def community-offset 4.0)
 (def community-offset-factor 1.25)
 
 (declare near-factors middle-factors middle-factors-helper set-community-locs! set-indiv-locs! indiv-locs lattice-locs)
@@ -100,3 +100,16 @@
         (== fac 1) [1 n]
         (== (mod n fac) 0.0) [fac (/ n fac)]
         :else (middle-factors-helper n (dec fac))))
+
+
+(defn set-links!
+  "Given a sim.field.network.Network and a collection of indivs, adds
+  the indivs to the network, and creates a single edge for each neighbor relationship
+  captured in indivs' neighbor fields.  Assumes that there are no duplicates of neighbor
+  relationships except that if I am your neighbor, you are my neighbor."
+  [network indivs]
+  (doseq [indiv indivs]
+    (doseq [neighbor (.getNeighbors indiv)]
+      (when-not (.getEdge network neighbor indiv) ; if undirected, order doesn't matter
+        (.addEdge network indiv neighbor nil))))) ; automatically adds nodes, too
+
