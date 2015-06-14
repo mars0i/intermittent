@@ -30,6 +30,7 @@
             [intermit.Sim :as s])
   (:import [intermit Sim]
            [sim.field.continuous Continuous2D]
+           [sim.field.network Network Edge]
            [sim.portrayal.continuous ContinuousPortrayal2D]
            [sim.portrayal.network NetworkPortrayal2D SpatialNetwork2D SimpleEdgePortrayal2D] ; TODO REVISE LIST
            [sim.portrayal.simple OvalPortrayal2D LabelledPortrayal2D CircledPortrayal2D MovablePortrayal2D] ; TODO REVISE LIST
@@ -52,8 +53,12 @@
 
 (defn -init-instance-state
   [& args]
-  (let [field-portrayal (ContinuousPortrayal2D.)]
-    (.setField field-portrayal (Continuous2D. 1.0 125 100)) ; we only need this for the display
+  (let [field (Continuous2D. 1.0 125 100)
+        net (Network.)
+        field-portrayal (ContinuousPortrayal2D.)
+        net-portrayal (NetworkPortrayal2D.)]
+    (.setField field-portrayal field) ; we only need this for the display
+    (.setField net-portrayal (SpatialNetwork2D. field net))
     [(vec args) {:display (atom nil)
                  :display-frame (atom nil)
                  :field-portrayal field-portrayal
