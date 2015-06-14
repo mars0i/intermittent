@@ -111,20 +111,21 @@
         display (.getDisplay this)
         communities (s/get-communities sim)
         population (s/get-population sim)]
-    ;; specify where indivs and communities should be placed:
+    ;; specify where indivs should be placed and what they look like:
     (lay/set-indiv-locs! field communities)
-    ; (lay/set-community-locs! field communities) ; not currently displaying communities per se
-    ;; specify what indivs and communities look like:
-    (.setPortrayalForClass field-portrayal intermit.Sim.Community (OvalPortrayal2D. (Color. 255 0 0) 2.0))
     (.setPortrayalForClass field-portrayal intermit.Sim.Indiv (OvalPortrayal2D. (Color. 0 0 255) 1.5))
-    ;; specify what's linked to what
+    ;; specify what's linked to what, and what links look like:
     (lay/set-links! net population)
-    ;; specify what links look like:
     (.setPortrayalForAll net-portrayal (SimpleEdgePortrayal2D.))
     (doto display
       (.reset )
       (.setBackdrop Color/white)
       (.repaint))))
+
+;; not in use:
+    ;; specify where community objects should be placed, and what they look like:
+    ;(lay/set-community-locs! field communities) ; not currently displaying communities per se
+    ;(.setPortrayalForClass field-portrayal intermit.Sim.Community (OvalPortrayal2D. (Color. 255 0 0) 2.0))
 
 
 ;; MOSTLY OK NOW AFTER SMALL MODS FROM Students VERSION.

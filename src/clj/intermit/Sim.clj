@@ -54,25 +54,6 @@
 (declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise avg-relig)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; PROTOCOLS/INTERFACES
-
-;; Separating these allows future versions in which e.g. communities can communicate,
-;; and allows a unified interface for finding out average culture of a community
-;; cultural values of indivs, etc.
-
-(defprotocol IndivP
-  "Protocol for Indivs."
-  (getSuccess [this])   
-  (getRelig [this])     
-  (getNeighbors [this]) 
-  (add-neighbor! [this newval])
-  (update-success! [this])
-  (copy-relig! [this sim population]))
-
-(defprotocol CommunityP
-  (get-members [this]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; INSTANCESTATE
 ;; Used to hold mutable data in Sim's instanceState variable
 ;; Need def here so we can type-hint Indiv's methods
@@ -88,6 +69,26 @@
                         poisson])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; PROTOCOLS/INTERFACES
+
+;; Separating these allows future versions in which e.g. communities can communicate,
+;; and allows a unified interface for finding out average culture of a community
+;; cultural values of indivs, etc.
+
+(defprotocol IndivP
+  "Protocol for Indivs."
+  (getId [this])
+  (getSuccess [this])   
+  (getRelig [this])     
+  (getNeighbors [this]) 
+  (add-neighbor! [this newval])
+  (update-success! [this])
+  (copy-relig! [this sim population]))
+
+(defprotocol CommunityP
+  (get-members [this]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; INDIV: class for individuals who communicate with each other.
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
@@ -101,6 +102,7 @@
 
 (deftype Indiv [id ^:volatile-mutable success ^:volatile-mutable relig ^:volatile-mutable neighbors]
   IndivP
+    (getId [this] id)
     (getSuccess [this] success)
     (getRelig [this] relig)
     (getNeighbors [this] neighbors)
