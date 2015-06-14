@@ -62,7 +62,8 @@
     [(vec args) {:display (atom nil)
                  :display-frame (atom nil)
                  :field-portrayal field-portrayal
-                 :net-portrayal (NetworkPortrayal2D.)}])) ; TODO
+                 :net-portrayal (NetworkPortrayal2D.)
+                 :net net}]))
 
 (defn -getDisplay [this] @(:display (.iState this)))
 (defn -setDisplay [this newval] (reset! (:display (.iState this)) newval))
@@ -72,8 +73,9 @@
 
 (defn get-field-portrayal [this] (:field-portrayal (.iState this)))
 (defn get-field [this] (.getField (:field-portrayal (.iState this))))
-(defn get-links-portrayal [this] (:net-portrayal (.iState this)))
-(defn get-links [this] (throw (Exception. "Not yet implemented.")))
+(defn get-net-portrayal [this] (:net-portrayal (.iState this)))
+(defn get-net [this] (:net (.iState this)))
+
 
 
 ;; Override super fn to set it as volatile
@@ -104,15 +106,21 @@
   (let [sim (.getState this)
         field-portrayal (get-field-portrayal this)
         field (.getField field-portrayal)
-        ; net-portrayal (get-links-portrayal this)
+        net-portrayal (get-net-portrayal this)
+        net (get-net this)
         display (.getDisplay this)
-        communities (s/get-communities sim)]
-
-    ;(lay/set-community-locs! field communities)
-    (lay/set-indiv-locs! field communities)
+        communities (s/get-communities sim)
+        population (s/get-population sim)]
+    ;; specify what indivs and communities look like:
     (.setPortrayalForClass field-portrayal intermit.Sim.Community (OvalPortrayal2D. (Color. 255 0 0) 2.0))
     (.setPortrayalForClass field-portrayal intermit.Sim.Indiv (OvalPortrayal2D. (Color. 0 0 255) 1.5))
+    ;; specify where indivs and communities should be placed:
+    (lay/set-indiv-locs! field communities)
+    ;(lay/set-community-locs! field communities) ; not currently displaying communities per se
+    ;; specify what links look like:
     (.setPortrayalForAll net-portrayal (SimpleEdgePortrayal2D.))
+    ;; add links to network:
+    (lay/set-links! net population)
     (doto display
       (.reset )
       (.setBackdrop Color/white)
