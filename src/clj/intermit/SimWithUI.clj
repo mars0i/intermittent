@@ -54,10 +54,10 @@
 (defn -init-instance-state
   [& args]
   (let [field (Continuous2D. 1.0 125 100)
-        net (Network.)
         field-portrayal (ContinuousPortrayal2D.)
+        net (Network.)
         net-portrayal (NetworkPortrayal2D.)]
-    (.setField field-portrayal field) ; we only need this for the display
+    (.setField field-portrayal field)
     (.setField net-portrayal (SpatialNetwork2D. field net))
     [(vec args) {:display (atom nil)
                  :display-frame (atom nil)
@@ -111,16 +111,16 @@
         display (.getDisplay this)
         communities (s/get-communities sim)
         population (s/get-population sim)]
+    ;; specify where indivs and communities should be placed:
+    (lay/set-indiv-locs! field communities)
+    ; (lay/set-community-locs! field communities) ; not currently displaying communities per se
     ;; specify what indivs and communities look like:
     (.setPortrayalForClass field-portrayal intermit.Sim.Community (OvalPortrayal2D. (Color. 255 0 0) 2.0))
     (.setPortrayalForClass field-portrayal intermit.Sim.Indiv (OvalPortrayal2D. (Color. 0 0 255) 1.5))
-    ;; specify where indivs and communities should be placed:
-    (lay/set-indiv-locs! field communities)
-    ;(lay/set-community-locs! field communities) ; not currently displaying communities per se
+    ;; specify what's linked to what
+    (lay/set-links! net population)
     ;; specify what links look like:
     (.setPortrayalForAll net-portrayal (SimpleEdgePortrayal2D.))
-    ;; add links to network:
-    (lay/set-links! net population)
     (doto display
       (.reset )
       (.setBackdrop Color/white)
@@ -137,13 +137,13 @@
     (.setDisplay this display)
     (doto display
       (.setClipping false)
-      ;(.attach (get-links-portrayal this) "Links")  ; IS THIS OK?
-      (.attach (get-field-portrayal this) "Field")) ; IS THIS OK?
+      (.attach (get-net-portrayal this) "Net")
+      (.attach (get-field-portrayal this) "Field"))
     ;; set up display frame:
     (.setDisplayFrame this display-frame)
     (.registerFrame controller display-frame)
     (doto display-frame 
-      (.setTitle "Intermittent Display")
+      (.setTitle "Intermittent")
       (.setVisible true))))
 
 
