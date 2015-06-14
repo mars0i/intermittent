@@ -92,8 +92,12 @@
 ;; These could be persons, villages, subaks, etc.
 ;; Initial version implements Steppable.
 
+;; NOTE: Objects created by deftype faster than those created by
+;; defrecord when they are hashed (e.g. in the set that's used in sample-wout-repl).
+;; 
 ;; volatile-mutable is a bit inconvenient since it requires accessors,
 ;; but it's faster than atoms, and these fields get accessed a lot.
+
 
 (deftype Indiv [id ^:volatile-mutable success ^:volatile-mutable relig ^:volatile-mutable neighbors]
   IndivP
