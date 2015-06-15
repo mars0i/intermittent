@@ -110,11 +110,16 @@
         net (get-net this)
         display (.getDisplay this)
         communities (s/get-communities sim)
-        population (s/get-population sim)]
+        population (s/get-population sim)
+        extended-oval-portrayal (proxy [OvalPortrayal2D] []
+                                 (draw [indiv graphics info]
+                                   (let [relig-shade (int (* (.getRelig indiv) 255))]
+                                     (set! (.-paint this) (Color. relig-shade 0 (- 255 relig-shade))) ; paint var is in OvalPortrayal2D; 'this' is auto-captured by proxy
+                                     (proxy-super draw indiv graphics info))))]
     ;; set up node display
     (.clear field)
     (lay/set-indiv-locs! field communities)
-    (.setPortrayalForClass field-portrayal intermit.Sim.Indiv (OvalPortrayal2D. (Color. 0 0 255) 1.5))
+    (.setPortrayalForClass field-portrayal intermit.Sim.Indiv extended-oval-portrayal)
     ;; set up network link display:
     (.clear net)
     (lay/set-links! net population)
@@ -125,6 +130,8 @@
       (.setBackdrop Color/white)
       (.repaint))))
 
+
+;;    (.setPortrayalForClass field-portrayal intermit.Sim.Indiv (OvalPortrayal2D. (Color. 0 0 255) 1.5))
 ;; community display--not in use:
     ;; specify where community objects should be placed, and what they look like:
     ;(lay/set-community-locs! field communities) ; not currently displaying communities per se
