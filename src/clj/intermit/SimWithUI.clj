@@ -102,24 +102,24 @@
   (.setupPortrayals this))
 
 (defn -setupPortrayals
-  [this]
-  (let [sim (.getState this)
-        field-portrayal (get-field-portrayal this)
+  [this-gui]  ; instead of 'this': avoid confusion with proxy below
+  (let [sim (.getState this-gui)
+        field-portrayal (get-field-portrayal this-gui)
         field (.getField field-portrayal)
-        net-portrayal (get-net-portrayal this)
-        net (get-net this)
-        display (.getDisplay this)
+        net-portrayal (get-net-portrayal this-gui)
+        net (get-net this-gui)
+        display (.getDisplay this-gui)
         communities (s/get-communities sim)
         population (s/get-population sim)
-        extended-oval-portrayal (proxy [OvalPortrayal2D] []
-                                 (draw [indiv graphics info]
-                                   (let [relig-shade (int (* (.getRelig indiv) 255))]
-                                     (set! (.-paint this) (Color. relig-shade 0 (- 255 relig-shade))) ; paint var is in OvalPortrayal2D; 'this' is auto-captured by proxy
-                                     (proxy-super draw indiv graphics info))))]
+        indiv-portrayal (proxy [OvalPortrayal2D] [1.5]    ; note proxy auto-captures 'this'
+                          (draw [indiv graphics info]
+                            (let [shade (int (* (.getSuccess indiv) 255))]
+                              (set! (.-paint this) (Color. shade 0 (- 255 shade))) ; paint var is in OvalPortrayal2D
+                              (proxy-super draw indiv graphics info))))]
     ;; set up node display
     (.clear field)
     (lay/set-indiv-locs! field communities)
-    (.setPortrayalForClass field-portrayal intermit.Sim.Indiv extended-oval-portrayal)
+    (.setPortrayalForClass field-portrayal intermit.Sim.Indiv indiv-portrayal)
     ;; set up network link display:
     (.clear net)
     (lay/set-links! net population)
