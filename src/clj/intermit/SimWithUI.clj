@@ -57,12 +57,14 @@
         field-portrayal (ContinuousPortrayal2D.)
         net (Network.)
         net-portrayal (NetworkPortrayal2D.)]
+    ;; setField on the net-portrayal here doesn't work--no error, but no net links displayed
+    ;; setField on field-portrayal works, but I moved it to near where the net-portrayal version went.
     (.setField field-portrayal field)
     (.setField net-portrayal (SpatialNetwork2D. field net))
     [(vec args) {:display (atom nil)
                  :display-frame (atom nil)
                  :field-portrayal field-portrayal
-                 :net-portrayal (NetworkPortrayal2D.)
+                 :net-portrayal net-portrayal
                  :net net}]))
 
 (defn -getDisplay [this] @(:display (.iState this)))
@@ -96,9 +98,7 @@
 
 (defn -start
   [this]
-  (.superStart this)
-  (.clear (get-field this)) ; TODO Can I put this here?
-  ;(.clear (get-links this)) ; TODO Can I put this here?
+  (.superStart this) ; this will call start() on the sim, i.e. our SimState object
   (.setupPortrayals this))
 
 (defn -setupPortrayals
@@ -111,25 +111,25 @@
         display (.getDisplay this)
         communities (s/get-communities sim)
         population (s/get-population sim)]
-    ;; specify where indivs should be placed and what they look like:
+    ;; set up node display
+    (.clear field)
     (lay/set-indiv-locs! field communities)
     (.setPortrayalForClass field-portrayal intermit.Sim.Indiv (OvalPortrayal2D. (Color. 0 0 255) 1.5))
-    ;; specify what's linked to what, and what links look like:
+    ;; set up network link display:
+    (.clear net)
     (lay/set-links! net population)
     (.setPortrayalForAll net-portrayal (SimpleEdgePortrayal2D.))
+    ;; set up display
     (doto display
       (.reset )
       (.setBackdrop Color/white)
       (.repaint))))
 
-;; not in use:
+;; community display--not in use:
     ;; specify where community objects should be placed, and what they look like:
     ;(lay/set-community-locs! field communities) ; not currently displaying communities per se
     ;(.setPortrayalForClass field-portrayal intermit.Sim.Community (OvalPortrayal2D. (Color. 255 0 0) 2.0))
 
-
-;; MOSTLY OK NOW AFTER SMALL MODS FROM Students VERSION.
-;; UI method--not for initializing the gen-class state.
 (defn -init
   [this controller] ; controller is called c in Java version
   (.superInit this controller)
@@ -148,7 +148,6 @@
       (.setVisible true))))
 
 
-;; THIS IS PROBABLY OK AS IS FROM Students
 (defn -quit
   [this]
   (.superQuit this)  ; combine in doto?
