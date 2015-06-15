@@ -16,14 +16,10 @@
 ;; But put intermit.Sim's methods at end, so we can type-hint references to Indiv, etc. in them.
 (ns intermit.Sim
   (:require [intermit.utils :as u])
-  (:import ;[sim.field.continuous Continuous2D]
-           ;[sim.field.network Network Edge]
-           ;[sim.util Double2D MutableDouble2D Interval]
-           [sim.engine Steppable Schedule]
+  (:import [sim.engine Steppable Schedule]
            [sim.util.distribution Poisson]
            [ec.util MersenneTwisterFast]
            [java.lang String]
-           ;[clojure.lang PersistentVector]
            [intermit Sim]) ; import rest of classes after each is defined
   (:gen-class :name intermit.Sim
               :extends sim.engine.SimState                         ; includes signature for the start() method
@@ -258,22 +254,23 @@
                           (atom nil)
                           (atom nil))])
 
-(defn -getNumCommunities ^long [^Sim this] @(.numCommunities (.instanceState this)))
-(defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities (.instanceState this)) newval))
-(defn -getMeanIndivsPerCommunity ^long [^Sim this] @(.meanIndivsPerCommunity (.instanceState this)))
-(defn -setMeanIndivsPerCommunity [^Sim this ^long newval] (reset! (.meanIndivsPerCommunity (.instanceState this)) newval))
-(defn -getLinkProb ^double [^Sim this] @(.linkProb (.instanceState this)))
-(defn -setLinkProb [^Sim this ^double newval] (reset! (.linkProb (.instanceState this)) newval))
-(defn -getNoiseStddev ^double [^Sim this] @(.noiseStddev (.instanceState this)))
-(defn -setNoiseStddev [^Sim this ^double newval] (reset! (.noiseStddev (.instanceState this)) newval))
-(defn -getPoissonMean ^double [^Sim this] @(.poissonMean (.instanceState this)))
+(defn -getNumCommunities ^long [^Sim this] @(.numCommunities ^InstanceState (.instanceState this)))
+(defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities ^InstanceState (.instanceState this)) newval))
+(defn -getMeanIndivsPerCommunity ^long [^Sim this] @(.meanIndivsPerCommunity ^InstanceState (.instanceState this)))
+(defn -setMeanIndivsPerCommunity [^Sim this ^long newval] (reset! (.meanIndivsPerCommunity ^InstanceState (.instanceState this)) newval))
+(defn -getLinkProb ^double [^Sim this] @(.linkProb ^InstanceState (.instanceState this)))
+(defn -setLinkProb [^Sim this ^double newval] (reset! (.linkProb ^InstanceState (.instanceState this)) newval))
+(defn -getNoiseStddev ^double [^Sim this] @(.noiseStddev ^InstanceState (.instanceState this)))
+(defn -setNoiseStddev [^Sim this ^double newval] (reset! (.noiseStddev ^InstanceState (.instanceState this)) newval))
+(defn -getPoissonMean ^double [^Sim this] @(.poissonMean ^InstanceState (.instanceState this)))
 (defn -setPoissonMean [^Sim this ^double newval] 
-  (reset! (.poissonMean (.instanceState this) newval)) ; store it so that UI can display its current value
-  (.setMean (.poisson (.instanceState this)) newval))  ; allows changing value during the middle of a run.
+  (let [^InstanceState istate (.instanceState this)]
+    (reset! (.poissonMean istate newval)) ; store it so that UI can display its current value WHY IS THIS REFLECTING??
+    (.setMean ^Poisson (.poisson istate) newval)))  ; allows changing value during the middle of a run.
 
 ;; Useful since the fields contain atoms:
-(defn get-communities [this] @(.communities (.instanceState this)))
-(defn get-population [this] @(.population (.instanceState this)))
+(defn get-communities [this] @(.communities ^InstanceState (.instanceState this)))
+(defn get-population [this] @(.population ^InstanceState (.instanceState this)))
 
 (defn -main
   [& args]
@@ -288,14 +285,13 @@
   [this]
   (.superStart this)
   (let [schedule (.schedule this)
-        instance-state (.instanceState this)
+        ^InstanceState instance-state (.instanceState this)
         num-communities  @(.numCommunities instance-state)
         indivs-per-community @(.meanIndivsPerCommunity instance-state)
         communities (vec (repeatedly num-communities
                                        #(make-community-of-indivs this indivs-per-community)))
         population (vec (mapcat get-members communities))]
     ;; set up core simulation structures (the stuff that runs even in headless mode)
-    ;(println (map #(identity @(.relig %)) population))
     (reset! (.poisson instance-state) (Poisson. @(.poissonMean instance-state) (.random this)))
     (reset! (.communities instance-state) communities)
     (reset! (.population instance-state) population)
@@ -303,8 +299,4 @@
     (.scheduleRepeating schedule Schedule/EPOCH 1            ; then update success fields afterwards
                         (reify Steppable 
                           (step [this sim-state]
-                            (doseq [^Indiv indiv population] (update-success! indiv)))))
-
-    ;; non-graphical data structures needed for graphics:
-    ;; graphics data structures:
-  ))
+                            (doseq [^Indiv indiv population] (update-success! indiv)))))))
