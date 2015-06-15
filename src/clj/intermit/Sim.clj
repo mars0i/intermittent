@@ -265,8 +265,8 @@
 (defn -getPoissonMean ^double [^Sim this] @(.poissonMean ^InstanceState (.instanceState this)))
 (defn -setPoissonMean [^Sim this ^double newval] 
   (let [^InstanceState istate (.instanceState this)]
-    (reset! (.poissonMean istate newval)) ; store it so that UI can display its current value WHY IS THIS REFLECTING??
-    (.setMean ^Poisson (.poisson istate) newval)))  ; allows changing value during the middle of a run.
+    (reset! (.poissonMean istate) newval) ; store it so that UI can display its current value
+    (.setMean ^Poisson @(.poisson istate) newval)))  ; allows changing value during the middle of a run.
 
 ;; Useful since the fields contain atoms:
 (defn get-communities [this] @(.communities ^InstanceState (.instanceState this)))
