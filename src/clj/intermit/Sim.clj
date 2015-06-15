@@ -128,6 +128,7 @@
 
 ;;; Runtime functions:
 
+;; TODO note this means that e.g. if indiv is isolated, then when it happens to get high relig, it will also have high success.  Is that realistic?
 (defn avg-relig
   "Returns the average of relig values of a collection of indivs and
   the given relig value."
