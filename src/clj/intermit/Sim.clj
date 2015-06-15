@@ -17,6 +17,7 @@
 (ns intermit.Sim
   (:require [intermit.utils :as u])
   (:import [sim.engine Steppable Schedule]
+           [sim.portrayal Oriented2D]
            [sim.util.distribution Poisson]
            [ec.util MersenneTwisterFast]
            [java.lang String]
@@ -123,6 +124,8 @@
       (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
             ^intermit.Sim.InstanceState istate (.instanceState sim)]
         (copy-relig! this sim @(.population istate))))
+  Oriented2D ; display pointer in GUI
+    (orientation2D [this] (+ (/ Math/PI 2) (* Math/PI success))) ; pointer goes from down (=0) to up (=1)
   Object
     (toString [this] (str id ": " success " " relig " " (vec (map #(.id %) neighbors)))))
 

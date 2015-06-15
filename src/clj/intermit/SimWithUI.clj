@@ -9,7 +9,7 @@
   (:import [intermit Sim]
            [sim.field.continuous Continuous2D]
            [sim.field.network Network Edge]
-           [sim.portrayal Oriented2D Orientable2D] ; TODO I probably only use one of these
+           [sim.portrayal Oriented2D Orientable2D] ; TODO I probably only use one of these, or none
            [sim.portrayal.continuous ContinuousPortrayal2D]
            [sim.portrayal.network NetworkPortrayal2D SpatialNetwork2D SimpleEdgePortrayal2D]
            [sim.portrayal.simple OvalPortrayal2D OrientedPortrayal2D]
@@ -57,14 +57,12 @@
 (defn get-net-portrayal [this] (:net-portrayal (.iState this)))
 (defn get-net [this] (:net (.iState this)))
 
-
-
 ;; Override super fn to set it as volatile
-(defn -getInspector
-  [this]
-  (let [i (.superGetInspector this)]
-    (.setVolatile i true)
-    i))
+;(defn -getInspector
+;  [this]
+;  (let [i (.superGetInspector this)]
+;    (.setVolatile i true)
+;    i))
 
 ;;;;;;;;;;;;;;;;;;;;
 
@@ -90,23 +88,17 @@
         display (.getDisplay this-gui)
         communities (s/get-communities sim)
         population (s/get-population sim)
-        ;; TODO TRYING TO GET ORIENTATION MARKER TO WORK:
-        indiv-portrayal (let [orientation (atom 0.0)]                        ; FIXME Wait: doesn't this mean there's one orientation for all indivs?? The old CL/Scheme OO trick. How often does one actually use a closure in Clojure?
-                          (proxy [OvalPortrayal2D Oriented2D] [1.5 false]    ; note proxy auto-captures 'this'
+        indiv-portrayal (OrientedPortrayal2D.  ; what this represents is set in the Oriented2D part of Indiv in Sim.clj
+                          (proxy [OvalPortrayal2D] [1.5]    ; note proxy auto-captures 'this'
                             (draw [indiv graphics info]                      ; override OvalPortrayal2D method
-                              (reset! orientation (* (.getRelig indiv) 2 Math/PI)) ; FIXME HOW BAD IS IT to side-effect a var for the sake of OrientedPortrayal2D here?
-                              (let [shade (int (* (.getSuccess indiv) 255))]
+                              (let [shade (int (* (.getRelig indiv) 255))]
                                 (set! (.-paint this) (Color. shade 0 (- 255 shade))) ; paint var is in OvalPortrayal2D
-                                (proxy-super draw indiv graphics info)))
-                            (orientation2D [] @orientation)               ; FIXME interface Oriented2D, or use by OrientedPortrayal2D
-                            (getOrientation [] @orientation))) ; FIXME
-        oriented-indiv-portrayal (OrientedPortrayal2D. indiv-portrayal 0 0.5 (Color. 0.0 0.0 0.0))] ; FIXME
+                                (proxy-super draw indiv graphics info))))
+                          0 1.75 (Color. 139 69 19) OrientedPortrayal2D/SHAPE_LINE)] ; color of the orientation line
     ;; set up node display
     (.clear field)
     (lay/set-indiv-locs! field communities)
-    (.setOrientationShowing oriented-indiv-portrayal true) ; FIXME
-    (.setOnlyDrawWhenSelected oriented-indiv-portrayal false) ; FIXME
-    (.setPortrayalForClass field-portrayal intermit.Sim.Indiv oriented-indiv-portrayal) ; FIXME
+    (.setPortrayalForClass field-portrayal intermit.Sim.Indiv indiv-portrayal)
     ;; set up network link display:
     (.clear net)
     (lay/set-links! net population)
