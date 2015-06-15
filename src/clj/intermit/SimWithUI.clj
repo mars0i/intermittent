@@ -2,28 +2,6 @@
 ;;; is distributed under the Gnu General Public License version 3.0 as
 ;;; specified in the file LICENSE.
 
-;; Notes:
-;; In Students, we have
-;;  * the SimState object (students)
-;;  * a Continuous2D (yard)
-;;    - we calculate x,y coordinates for each student, and insert it into the yard 
-;;      Continuous2D using setObjectLocation.
-;;  * the ContinuousPortrayal2D (yard-portrayal)
-;;    - we setField it with the yard, i.e. the Continous2D
-;;    - we setPortrayalForAll it with various Portrayals that apply to the indiv students, somehow
-;; Also:
-;; * a Network (net)
-;;   - we add each student to the Network using addNode
-;;   - we add (random) links to the Network using addEdge
-;; * a NetworkPortrayal2D (net-portrayal)
-;;   - we setField it with a SpatialNetwork2D, to which we pass 
-;;     the yard Continuous2D and the net Network.
-;;   - we setPortryalForAll it with an edge portrayal, that applies to edges, apparently.
-;; Also:
-;; * we do the preceding in a method called from -start.
-;; * we do various things in -init to attach() this stuff to the display objects.
-;; * and some display setup in -main.
-
 
 (ns intermit.SimWithUI
   (:require [intermit.layout :as lay]
@@ -31,10 +9,11 @@
   (:import [intermit Sim]
            [sim.field.continuous Continuous2D]
            [sim.field.network Network Edge]
+           [sim.portrayal Oriented2D Orientable2D] ; TODO I probably only use one of these
            [sim.portrayal.continuous ContinuousPortrayal2D]
-           [sim.portrayal.network NetworkPortrayal2D SpatialNetwork2D SimpleEdgePortrayal2D] ; TODO REVISE LIST
-           [sim.portrayal.simple OvalPortrayal2D LabelledPortrayal2D CircledPortrayal2D MovablePortrayal2D] ; TODO REVISE LIST
-           [sim.display Console Display2D] ; TODO REVISE LIST
+           [sim.portrayal.network NetworkPortrayal2D SpatialNetwork2D SimpleEdgePortrayal2D]
+           [sim.portrayal.simple OvalPortrayal2D OrientedPortrayal2D]
+           [sim.display Console Display2D]
            [java.awt Color])
   (:gen-class
     :name intermit.SimWithUI
@@ -111,15 +90,23 @@
         display (.getDisplay this-gui)
         communities (s/get-communities sim)
         population (s/get-population sim)
-        indiv-portrayal (proxy [OvalPortrayal2D] [1.5]    ; note proxy auto-captures 'this'
-                          (draw [indiv graphics info]
-                            (let [shade (int (* (.getSuccess indiv) 255))]
-                              (set! (.-paint this) (Color. shade 0 (- 255 shade))) ; paint var is in OvalPortrayal2D
-                              (proxy-super draw indiv graphics info))))]
+        ;; TODO TRYING TO GET ORIENTATION MARKER TO WORK:
+        indiv-portrayal (let [orientation (atom 0.0)]                        ; FIXME Wait: doesn't this mean there's one orientation for all indivs?? The old CL/Scheme OO trick. How often does one actually use a closure in Clojure?
+                          (proxy [OvalPortrayal2D Oriented2D] [1.5 false]    ; note proxy auto-captures 'this'
+                            (draw [indiv graphics info]                      ; override OvalPortrayal2D method
+                              (reset! orientation (* (.getRelig indiv) 2 Math/PI)) ; FIXME HOW BAD IS IT to side-effect a var for the sake of OrientedPortrayal2D here?
+                              (let [shade (int (* (.getSuccess indiv) 255))]
+                                (set! (.-paint this) (Color. shade 0 (- 255 shade))) ; paint var is in OvalPortrayal2D
+                                (proxy-super draw indiv graphics info)))
+                            (orientation2D [] @orientation)               ; FIXME interface Oriented2D, or use by OrientedPortrayal2D
+                            (getOrientation [] @orientation))) ; FIXME
+        oriented-indiv-portrayal (OrientedPortrayal2D. indiv-portrayal 0 0.5 (Color. 0.0 0.0 0.0))] ; FIXME
     ;; set up node display
     (.clear field)
     (lay/set-indiv-locs! field communities)
-    (.setPortrayalForClass field-portrayal intermit.Sim.Indiv indiv-portrayal)
+    (.setOrientationShowing oriented-indiv-portrayal true) ; FIXME
+    (.setOnlyDrawWhenSelected oriented-indiv-portrayal false) ; FIXME
+    (.setPortrayalForClass field-portrayal intermit.Sim.Indiv oriented-indiv-portrayal) ; FIXME
     ;; set up network link display:
     (.clear net)
     (lay/set-links! net population)
