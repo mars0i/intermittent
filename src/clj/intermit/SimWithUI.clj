@@ -30,7 +30,7 @@
     :state iState
     :init init-instance-state))
 
-(def indiv-position-jitter 0.25) ; stddev of noise added to node positions to make it easier to distinguish links to vs those that just happen to cross a node
+(def indiv-position-jitter 0.30) ; stddev of noise added to node positions to make it easier to distinguish links to vs those that just happen to cross a node
 
 (defn -init-instance-state
   [& args]
