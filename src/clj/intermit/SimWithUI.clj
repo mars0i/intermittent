@@ -30,6 +30,8 @@
     :state iState
     :init init-instance-state))
 
+(def indiv-position-jitter 0.25) ; stddev of noise added to node positions to make it easier to distinguish links to vs those that just happen to cross a node
+
 (defn -init-instance-state
   [& args]
   (let [field (Continuous2D. 1.0 125 100)
@@ -81,6 +83,7 @@
 (defn -setupPortrayals
   [this-gui]  ; instead of 'this': avoid confusion with proxy below
   (let [sim (.getState this-gui)
+        rng (.random sim)
         field-portrayal (get-field-portrayal this-gui)
         field (.getField field-portrayal)
         net-portrayal (get-net-portrayal this-gui)
@@ -98,7 +101,7 @@
         edge-portrayal (SimpleEdgePortrayal2D. (Color. 130 130 130) nil)]
     ;; set up node display
     (.clear field)
-    (lay/set-indiv-locs! field communities)
+    (lay/set-indiv-locs! rng indiv-position-jitter field communities) ; jitter makes easier to distinguish links that just happen to cross a node
     (.setPortrayalForClass field-portrayal intermit.Sim.Indiv indiv-portrayal)
     ;; set up network link display:
     (.clear net)

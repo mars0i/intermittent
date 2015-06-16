@@ -16,7 +16,7 @@
 (def community-offset 4.0)
 (def community-offset-factor 1.25)
 
-(declare near-factors middle-factors middle-factors-helper set-community-locs! set-indiv-locs! indiv-locs lattice-locs)
+(declare near-factors middle-factors middle-factors-helper set-community-locs! set-indiv-locs! indiv-locs lattice-locs add-jitter-to-locs)
 
 ;; Might be unused.
 (defn set-community-locs!
@@ -29,11 +29,22 @@
 
 (defn set-indiv-locs!
   "Insert indivs into field at locations calculated so that they're spread out
-  in a lattice of lattices across the field.  (Uses communities merely to organize
+  in a lattice of lattices across the field.  If rng and stddev are added, adds
+  Normal noise to x and y coordinates.  (Uses communities merely to organize
   indivs; doesn't set locations of communities.)"
-  [field communities]
-  (doseq [[indiv x-loc y-loc] (indiv-locs (.getWidth field) (.getHeight field) communities)]
-      (.setObjectLocation field indiv (Double2D. x-loc y-loc))))
+  ([field communities] (set-indiv-locs! field communities nil nil))
+  ([rng stddev field communities]
+   (let [adjust-position (if rng (partial add-jitter-to-locs rng stddev) identity)]
+     (doseq [[indiv x-loc y-loc] (adjust-position
+                                   (indiv-locs (.getWidth field) (.getHeight field) communities))]
+       (.setObjectLocation field indiv (Double2D. x-loc y-loc))))))
+
+(defn add-jitter-to-locs
+  [rng stddev indiv-locs]
+  (for [[indiv x-loc y-loc] indiv-locs]
+    [indiv 
+     (+ x-loc (* stddev ^double (.nextGaussian rng)))
+     (+ y-loc (* stddev ^double (.nextGaussian rng)))]))
 
 (defn indiv-locs
   [overall-width overall-height communities]
