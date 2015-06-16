@@ -94,7 +94,8 @@
                               (let [shade (int (* (.getRelig indiv) 255))]
                                 (set! (.-paint this) (Color. shade 0 (- 255 shade))) ; paint var is in OvalPortrayal2D
                                 (proxy-super draw indiv graphics info))))
-                          0 1.75 (Color. 139 69 19) OrientedPortrayal2D/SHAPE_LINE)] ; color of the orientation line
+                          0 1.75 (Color. 0 0 0) OrientedPortrayal2D/SHAPE_LINE) ; color is of of orientation line/shape
+        edge-portrayal (SimpleEdgePortrayal2D. (Color. 130 90 30) nil)]
     ;; set up node display
     (.clear field)
     (lay/set-indiv-locs! field communities)
@@ -102,7 +103,8 @@
     ;; set up network link display:
     (.clear net)
     (lay/set-links! net population)
-    (.setPortrayalForAll net-portrayal (SimpleEdgePortrayal2D.))
+    ;(.setAdjustsThickness edge-portrayal true) ;(.setBaseWidth edge-portrayal 1.0) ; trying to set line thicknesses
+    (.setPortrayalForAll net-portrayal edge-portrayal)
     ;; set up display
     (doto display
       (.reset )

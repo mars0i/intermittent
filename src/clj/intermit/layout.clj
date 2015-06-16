@@ -111,5 +111,5 @@
   (doseq [indiv indivs]
     (doseq [neighbor (.getNeighbors indiv)]
       (when-not (.getEdge network neighbor indiv) ; if undirected, order doesn't matter
-        (.addEdge network indiv neighbor nil))))) ; automatically adds nodes, too
+        (.addEdge network indiv neighbor 2.0))))) ; automatically adds nodes, too. I thought I could set thickness using the double, but doesn't work?
 
