@@ -31,10 +31,12 @@
                         [setMeanIndivsPerCommunity [long] void]
                         [getLinkProb [] double]
                         [setLinkProb [double] void]
-                        [getNoiseStddev [] double]
-                        [setNoiseStddev [double] void]
-                        [getPoissonMean [] double]
-                        [setPoissonMean [double] void]]
+                        [getTranStddev [] double]
+                        [setTranStddev [double] void]
+                        [getGlobalInterlocMean [] double]
+                        [setGlobalInterlocMean [double] void]
+                        [getSuccessStddev [] double]
+                        [setSuccessStddev [double] void]]
               :state instanceState
               :init init-instance-state
               :main true))
@@ -45,10 +47,11 @@
 (def initial-num-communities 12) ; use something that factors into x and y dimensions
 (def initial-mean-indivs-per-community 12)
 (def initial-link-prob 0.2)
-(def initial-noise-stddev 0.02)
-(def initial-poisson-mean 0.025)
+(def initial-tran-stddev 0.02)
+(def initial-global-interloc-mean 0.025)
+(def initial-success-stddev 0.1)
 
-(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-tran-noise avg-relig)
+(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-noise avg-relig)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; INSTANCESTATE
@@ -59,8 +62,9 @@
 (deftype InstanceState [numCommunities          ; number of communities
                         meanIndivsPerCommunity  ; mean or exact number of indivs in each
                         linkProb
-                        noiseStddev
-                        poissonMean
+                        tranStddev
+                        globalInterlocMean
+                        successStddev
                         communities             ; holds the communities
                         population              ; holds all individuals
                         poisson])
@@ -79,7 +83,7 @@
   (getRelig [this])     
   (getNeighbors [this]) 
   (add-neighbor! [this newval])
-  (update-success! [this])
+  (update-success! [this sim])
   (copy-relig! [this sim population]))
 
 (defprotocol CommunityP
@@ -104,20 +108,24 @@
     (getRelig [this] relig)
     (getNeighbors [this] neighbors)
     (add-neighbor! [this new-neighbor] (set! neighbors (conj neighbors new-neighbor)))
-    (update-success! [this]
-      (set! success (avg-relig relig neighbors)))
+    (update-success! [this sim-state]
+      (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
+            ^MersenneTwisterFast rng (.random sim)
+            ^InstanceState istate (.instanceState sim)
+            ^double stddev @(.successStddev istate)]
+        (set! success (add-noise rng stddev (avg-relig relig neighbors)))))
     (copy-relig! [this sim-state population]
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
             ^MersenneTwisterFast rng (.random sim)
             ^InstanceState istate (.instanceState sim)
             ^Poisson poisson @(.poisson istate)
-            ^double noise-stddev @(.noiseStddev istate)]
+            ^double stddev @(.tranStddev istate)]
         (when-let [^Indiv best-model (choose-most-successful 
                                        rng
                                        (into neighbors ;   (a) neighbors, (b) 0 or more random indivs from entire pop
                                              (choose-others-from-pop rng poisson this population)))]
           (when (> (getSuccess best-model) success)     ; is most successful other, better than me?
-            (set! relig (add-tran-noise rng noise-stddev (getRelig best-model)))))))
+            (set! relig (add-noise rng stddev (getRelig best-model)))))))
   Steppable
     ;; Note that by maintaining only a single version of vars, and allowing each indiv to be stepped in random order, we allow per-tick path dependencies.
     (step [this sim-state] 
@@ -185,12 +193,10 @@
                      :else i2))))]
     (reduce compare-success models)))
 
-(defn add-tran-noise
- "Add Normal noise with stddev to relig, clipping to extrema 0.0 and 1.0."
-  ^double [^MersenneTwisterFast rng ^double stddev ^double relig]
-  (max 0.0 (min 1.0
-                (+ relig
-                   (* stddev ^double (.nextGaussian rng))))))
+(defn add-noise
+ "Add Normal noise with stddev to value, clipping to extrema 0.0 and 1.0."
+  ^double [^MersenneTwisterFast rng ^double stddev ^double value]
+  (max 0.0 (min 1.0 (+ value (* stddev ^double (.nextGaussian rng))))))
 
 ;;; Initialization functions:
 
@@ -252,8 +258,9 @@
   [[seed] (InstanceState. (atom initial-num-communities)
                           (atom initial-mean-indivs-per-community) 
                           (atom initial-link-prob)
-                          (atom initial-noise-stddev)
-                          (atom initial-poisson-mean)
+                          (atom initial-tran-stddev)
+                          (atom initial-global-interloc-mean)
+                          (atom initial-success-stddev)
                           (atom nil)
                           (atom nil)
                           (atom nil))])
@@ -264,13 +271,15 @@
 (defn -setMeanIndivsPerCommunity [^Sim this ^long newval] (reset! (.meanIndivsPerCommunity ^InstanceState (.instanceState this)) newval))
 (defn -getLinkProb ^double [^Sim this] @(.linkProb ^InstanceState (.instanceState this)))
 (defn -setLinkProb [^Sim this ^double newval] (reset! (.linkProb ^InstanceState (.instanceState this)) newval))
-(defn -getNoiseStddev ^double [^Sim this] @(.noiseStddev ^InstanceState (.instanceState this)))
-(defn -setNoiseStddev [^Sim this ^double newval] (reset! (.noiseStddev ^InstanceState (.instanceState this)) newval))
-(defn -getPoissonMean ^double [^Sim this] @(.poissonMean ^InstanceState (.instanceState this)))
-(defn -setPoissonMean [^Sim this ^double newval] 
+(defn -getTranStddev ^double [^Sim this] @(.tranStddev ^InstanceState (.instanceState this)))
+(defn -setTranStddev [^Sim this ^double newval] (reset! (.tranStddev ^InstanceState (.instanceState this)) newval))
+(defn -getGlobalInterlocMean ^double [^Sim this] @(.globalInterlocMean ^InstanceState (.instanceState this)))
+(defn -setGlobalInterlocMean [^Sim this ^double newval] 
   (let [^InstanceState istate (.instanceState this)]
-    (reset! (.poissonMean istate) newval) ; store it so that UI can display its current value
+    (reset! (.globalInterlocMean istate) newval) ; store it so that UI can display its current value
     (.setMean ^Poisson @(.poisson istate) newval)))  ; allows changing value during the middle of a run.
+(defn -getSuccessStddev ^double [^Sim this] @(.successStddev ^InstanceState (.instanceState this)))
+(defn -setSuccessStddev [^Sim this ^double newval] (reset! (.successStddev ^InstanceState (.instanceState this)) newval))
 
 ;; Useful since the fields contain atoms:
 (defn get-communities [this] @(.communities ^InstanceState (.instanceState this)))
@@ -296,11 +305,11 @@
                                        #(make-community-of-indivs this indivs-per-community)))
         population (vec (mapcat get-members communities))]
     ;; set up core simulation structures (the stuff that runs even in headless mode)
-    (reset! (.poisson instance-state) (Poisson. @(.poissonMean instance-state) (.random this)))
+    (reset! (.poisson instance-state) (Poisson. @(.globalInterlocMean instance-state) (.random this)))
     (reset! (.communities instance-state) communities)
     (reset! (.population instance-state) population)
     (doseq [indiv population] (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))  ; indivs' step fns run first to communicate relig
     (.scheduleRepeating schedule Schedule/EPOCH 1            ; then update success fields afterwards
                         (reify Steppable 
                           (step [this sim-state]
-                            (doseq [^Indiv indiv population] (update-success! indiv)))))))
+                            (doseq [^Indiv indiv population] (update-success! indiv sim-state)))))))
