@@ -95,14 +95,16 @@
                                 (set! (.-paint this) (Color. shade 0 (- 255 shade))) ; paint var is in OvalPortrayal2D
                                 (proxy-super draw indiv graphics info))))
                           0 1.75 (Color. 0 0 0) OrientedPortrayal2D/SHAPE_LINE) ; color is of of orientation line/shape
-        edge-portrayal (SimpleEdgePortrayal2D. (Color. 130 90 30) nil)]
+        edge-portrayal (SimpleEdgePortrayal2D. (Color. 130 130 130) nil)]
     ;; set up node display
     (.clear field)
     (lay/set-indiv-locs! field communities)
     (.setPortrayalForClass field-portrayal intermit.Sim.Indiv indiv-portrayal)
     ;; set up network link display:
     (.clear net)
-    (lay/set-links! net population)
+    (lay/set-links! net population) ; set-links! sets edges' info fields to nil (null): edges have no weight, so weight defaults to 1.0
+    (.setShape edge-portrayal SimpleEdgePortrayal2D/SHAPE_LINE_BUTT_ENDS) ; Default SHAPE_THIN_LINE doesn't allow changing thickness. Other differences don't matter, if thinner than nodes.
+    (.setBaseWidth edge-portrayal 0.2) ; line width
     ;(.setAdjustsThickness edge-portrayal true) ;(.setBaseWidth edge-portrayal 1.0) ; trying to set line thicknesses
     (.setPortrayalForAll net-portrayal edge-portrayal)
     ;; set up display
