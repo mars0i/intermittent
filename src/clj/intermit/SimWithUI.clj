@@ -36,24 +36,32 @@
   [& args]
   (let [field (Continuous2D. 1.0 125 100)
         field-portrayal (ContinuousPortrayal2D.)
-        socnet (Network.)
-        socnet-portrayal (NetworkPortrayal2D.)]
+        soc-net (Network. false) ; undirected
+        soc-net-portrayal (NetworkPortrayal2D.)
+        talk-net (Network. true) ; directed
+        talk-net-portrayal (NetworkPortrayal2D.)]
     (.setField field-portrayal field)
-    (.setField socnet-portrayal (SpatialNetwork2D. field socnet))
+    (.setField soc-net-portrayal  (SpatialNetwork2D. field soc-net))
+    (.setField talk-net-portrayal (SpatialNetwork2D. field talk-net))
     [(vec args) {:display (atom nil)
                  :display-frame (atom nil)
-                 :field-portrayal field-portrayal
-                 :socnet-portrayal socnet-portrayal
-                 :socnet socnet}]))
+                 :field field                         ; holds nodes
+                 :field-portrayal field-portrayal     ; displays nodes
+                 :soc-net soc-net                     ; holds within-community social network
+                 :soc-net-portrayal soc-net-portrayal ; displays ditto
+                 :talk-net talk-net
+                 :talk-net-portrayal talk-net-portrayal}]))
 
 (defn get-display [this] @(:display (.iState this)))
 (defn set-display [this newval] (reset! (:display (.iState this)) newval))
 (defn get-display-frame [this] @(:display-frame (.iState this)))
 (defn set-display-frame [this newval] (reset! (:display-frame (.iState this)) newval))
+(defn get-field [this] (:field (.iState this)))
 (defn get-field-portrayal [this] (:field-portrayal (.iState this)))
-(defn get-field [this] (.getField (:field-portrayal (.iState this))))
-(defn get-net-portrayal [this] (:socnet-portrayal (.iState this)))
-(defn get-net [this] (:socnet (.iState this)))
+(defn get-soc-net-portrayal [this] (:soc-net-portrayal (.iState this)))
+(defn get-soc-net [this] (:soc-net (.iState this)))
+(defn get-talk-net-portrayal [this] (:talk-net-portrayal (.iState this)))
+(defn get-talk-net [this] (:talk-net (.iState this)))
 
 ;; Override methods in sim.display.GUIState so that UI can make graphs, etc.
 (defn -getSimulationInspectedObject [this] (.state this))
@@ -79,10 +87,12 @@
   [this-gui]  ; instead of 'this': avoid confusion with proxy below
   (let [sim (.getState this-gui)
         rng (.random sim)
+        field (get-field this-gui)
         field-portrayal (get-field-portrayal this-gui)
-        field (.getField field-portrayal)
-        socnet-portrayal (get-net-portrayal this-gui)
-        socnet (get-net this-gui)
+        soc-net (get-soc-net this-gui)
+        soc-net-portrayal (get-soc-net-portrayal this-gui)
+        talk-net (get-talk-net this-gui)
+        talk-net-portrayal (get-talk-net-portrayal this-gui)
         display (get-display this-gui)
         communities (s/get-communities sim)
         population (s/get-population sim)
@@ -93,18 +103,22 @@
                                 (set! (.-paint this) (Color. shade 0 (- 255 shade))) ; paint var is in OvalPortrayal2D
                                 (proxy-super draw indiv graphics info))))
                           0 1.75 (Color. 0 0 0) OrientedPortrayal2D/SHAPE_LINE) ; color is of of orientation line/shape
-        edge-portrayal (SimpleEdgePortrayal2D. (Color. 140 140 140) nil)]
+        soc-edge-portrayal (SimpleEdgePortrayal2D. (Color. 140 140 140) nil)
+        talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 140 0 0) nil)]
     ;; set up node display
     (.clear field)
     (lay/set-indiv-locs! rng indiv-position-jitter field communities) ; jitter makes easier to distinguish links that just happen to cross a node
     (.setPortrayalForClass field-portrayal intermit.Sim.Indiv indiv-portrayal)
-    ;; set up network link display:
-    (.clear socnet)
-    (lay/set-links! socnet population) ; set-links! sets edges' info fields to nil (null): edges have no weight, so weight defaults to 1.0
-    (.setShape edge-portrayal SimpleEdgePortrayal2D/SHAPE_LINE_BUTT_ENDS) ; Default SHAPE_THIN_LINE doesn't allow changing thickness. Other differences don't matter, if thinner than nodes.
-    (.setBaseWidth edge-portrayal 0.15) ; line width
-    ;(.setAdjustsThickness edge-portrayal true) ;(.setBaseWidth edge-portrayal 1.0) ; trying to set line thicknesses
-    (.setPortrayalForAll socnet-portrayal edge-portrayal)
+    ;; set up within-community social network link display:
+    (.clear soc-net)
+    (lay/set-links! soc-net population) ; set-links! sets edges' info fields to nil (null): edges have no weight, so weight defaults to 1.0
+    (.setShape soc-edge-portrayal SimpleEdgePortrayal2D/SHAPE_LINE_BUTT_ENDS) ; Default SHAPE_THIN_LINE doesn't allow changing thickness. Other differences don't matter, if thinner than nodes.
+    (.setBaseWidth soc-edge-portrayal 0.15) ; line width
+    (.setPortrayalForAll soc-net-portrayal soc-edge-portrayal)
+    ;; set up actual communication network link display (links added transiently during ticks):
+    (.clear talk-net)
+    (.setShape talk-edge-portrayal SimpleEdgePortrayal2D/SHAPE_TRIANGLE)
+    (.setBaseWidth talk-edge-portrayal 0.5) ; width at base (from end) of triangle
     ;; set up display
     (doto display
       (.reset )
@@ -126,8 +140,9 @@
     (set-display this display)
     (doto display
       (.setClipping false)
-      (.attach (get-net-portrayal this) "Net")
-      (.attach (get-field-portrayal this) "Field"))
+      (.attach (get-soc-net-portrayal this) "Soc net")   ; The order of attaching is the order of painting.
+      (.attach (get-field-portrayal this) "Field")       ; what's attached later will appear on top of what's earlier. 
+      (.attach (get-talk-net-portrayal this) "Talk net"))
     ;; set up display frame:
     (set-display-frame this display-frame)
     (.registerFrame controller display-frame)
