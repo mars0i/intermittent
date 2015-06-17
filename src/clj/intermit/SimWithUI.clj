@@ -9,7 +9,6 @@
   (:import [intermit Sim]
            [sim.field.continuous Continuous2D]
            [sim.field.network Network Edge]
-           [sim.portrayal Oriented2D Orientable2D] ; TODO I probably only use one of these, or none
            [sim.portrayal.continuous ContinuousPortrayal2D]
            [sim.portrayal.network NetworkPortrayal2D SpatialNetwork2D SimpleEdgePortrayal2D]
            [sim.portrayal.simple OvalPortrayal2D OrientedPortrayal2D]
@@ -47,19 +46,14 @@
 (defn set-display [this newval] (reset! (:display (.iState this)) newval))
 (defn get-display-frame [this] @(:display-frame (.iState this)))
 (defn set-display-frame [this newval] (reset! (:display-frame (.iState this)) newval))
-(defn -getSimulationInspectedObject [this] (.state this))
-
 (defn get-field-portrayal [this] (:field-portrayal (.iState this)))
 (defn get-field [this] (.getField (:field-portrayal (.iState this))))
 (defn get-net-portrayal [this] (:net-portrayal (.iState this)))
 (defn get-net [this] (:net (.iState this)))
 
-;; Override super fn to set it as volatile
-;(defn -getInspector
-;  [this]
-;  (let [i (.superGetInspector this)]
-;    (.setVolatile i true)
-;    i))
+;; Override methods in sim.display.GUIState so that UI can make graphs, etc.
+(defn -getSimulationInspectedObject [this] (.state this))
+(defn -getInspector [this] (let [i (.superGetInspector this)] (.setVolatile i true) i))
 
 ;;;;;;;;;;;;;;;;;;;;
 
@@ -95,7 +89,7 @@
                                 (set! (.-paint this) (Color. shade 0 (- 255 shade))) ; paint var is in OvalPortrayal2D
                                 (proxy-super draw indiv graphics info))))
                           0 1.75 (Color. 0 0 0) OrientedPortrayal2D/SHAPE_LINE) ; color is of of orientation line/shape
-        edge-portrayal (SimpleEdgePortrayal2D. (Color. 130 130 130) nil)]
+        edge-portrayal (SimpleEdgePortrayal2D. (Color. 140 140 140) nil)]
     ;; set up node display
     (.clear field)
     (lay/set-indiv-locs! rng indiv-position-jitter field communities) ; jitter makes easier to distinguish links that just happen to cross a node
@@ -104,7 +98,7 @@
     (.clear net)
     (lay/set-links! net population) ; set-links! sets edges' info fields to nil (null): edges have no weight, so weight defaults to 1.0
     (.setShape edge-portrayal SimpleEdgePortrayal2D/SHAPE_LINE_BUTT_ENDS) ; Default SHAPE_THIN_LINE doesn't allow changing thickness. Other differences don't matter, if thinner than nodes.
-    (.setBaseWidth edge-portrayal 0.2) ; line width
+    (.setBaseWidth edge-portrayal 0.15) ; line width
     ;(.setAdjustsThickness edge-portrayal true) ;(.setBaseWidth edge-portrayal 1.0) ; trying to set line thicknesses
     (.setPortrayalForAll net-portrayal edge-portrayal)
     ;; set up display
