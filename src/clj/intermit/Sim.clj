@@ -25,6 +25,7 @@
   (:require [intermit.utils :as u])
   (:import [sim.engine Steppable Schedule]
            [sim.portrayal Oriented2D]
+           [sim.util Interval]
            [sim.util.distribution Poisson]
            [ec.util MersenneTwisterFast]
            [java.lang String]
@@ -38,12 +39,14 @@
                         [setMeanIndivsPerCommunity [long] void]
                         [getLinkProb [] double]
                         [setLinkProb [double] void]
+                        [domLinkProb [] java.lang.Object]
                         [getTranStddev [] double]
                         [setTranStddev [double] void]
                         [getGlobalInterlocMean [] double]
                         [setGlobalInterlocMean [double] void]
                         [getSuccessStddev [] double]
-                        [setSuccessStddev [double] void]]
+                        [setSuccessStddev [double] void]
+                        [domSuccessStddev [] java.lang.Object]]
               :state instanceState
               :init init-instance-state
               :main true))
@@ -283,6 +286,7 @@
 (defn -setMeanIndivsPerCommunity [^Sim this ^long newval] (reset! (.meanIndivsPerCommunity ^InstanceState (.instanceState this)) newval))
 (defn -getLinkProb ^double [^Sim this] @(.linkProb ^InstanceState (.instanceState this)))
 (defn -setLinkProb [^Sim this ^double newval] (reset! (.linkProb ^InstanceState (.instanceState this)) newval))
+(defn -domLinkProb [this] (Interval. 0.0 1.0))
 (defn -getTranStddev ^double [^Sim this] @(.tranStddev ^InstanceState (.instanceState this)))
 (defn -setTranStddev [^Sim this ^double newval] (reset! (.tranStddev ^InstanceState (.instanceState this)) newval))
 (defn -getGlobalInterlocMean ^double [^Sim this] @(.globalInterlocMean ^InstanceState (.instanceState this)))
@@ -292,6 +296,7 @@
     (.setMean ^Poisson @(.poisson istate) newval)))  ; allows changing value during the middle of a run.
 (defn -getSuccessStddev ^double [^Sim this] @(.successStddev ^InstanceState (.instanceState this)))
 (defn -setSuccessStddev [^Sim this ^double newval] (reset! (.successStddev ^InstanceState (.instanceState this)) newval))
+(defn -domSuccessStddev [this] (Interval. 0.0 1.0)) ; since success ranges from 0 to 1, it doesn't make sense to have a stddev that's much larger than about 0.7.
 
 ;; Useful since the fields contain atoms:
 (defn get-communities [this] @(.communities ^InstanceState (.instanceState this)))
