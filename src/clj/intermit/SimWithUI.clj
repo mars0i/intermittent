@@ -13,6 +13,7 @@
   (:require [intermit.layout :as lay]
             [intermit.Sim :as s])
   (:import [intermit Sim]
+           [sim.engine Steppable Schedule]
            [sim.field.continuous Continuous2D]
            [sim.field.network Network Edge]
            [sim.portrayal.continuous ContinuousPortrayal2D]
@@ -69,7 +70,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;
 
-(declare setup-portrayals)
+(declare setup-portrayals schedule-talk-links)
 
 (defn -main
   [& args]
@@ -79,9 +80,26 @@
 (defn -getName [this] "Intermittent") ; override method in super
 
 (defn -start
-  [this]
-  (.superStart this) ; this will call start() on the sim, i.e. our SimState object
-  (setup-portrayals this))
+  [this-gui]
+  (.superStart this-gui) ; this will call start() on the sim, i.e. our SimState object
+  (setup-portrayals this-gui)
+  (schedule-talk-links this-gui)) ; TODO: Question: SHOULD THIS BE IN INIT??
+
+;; Schedule a step here to transiently add/remove talk-links from the talk-net.
+;; This isn't needed in the underlying simulation, so do it here rather than Sim.clj.
+(defn schedule-talk-links
+  [this-gui]
+  (.scheduleRepeating (.schedule (.getState this-gui))
+                      Schedule/EPOCH 2
+                      (reify Steppable
+                        (step [this-steppable sim-state]
+                          (let [talk-net (get-talk-net this-gui)
+                                istate (.instanceState sim-state)
+                                population @(.population istate)]
+                            (.clear talk-net)
+                            (doseq [indiv population] 
+                              (when-let [speaker (s/get-prev-speaker indiv)]
+                                (.addEdge talk-net speaker indiv nil))))))))
 
 (defn setup-portrayals
   [this-gui]  ; instead of 'this': avoid confusion with proxy below
@@ -104,7 +122,7 @@
                                 (proxy-super draw indiv graphics info))))
                           0 1.75 (Color. 0 0 0) OrientedPortrayal2D/SHAPE_LINE) ; color is of of orientation line/shape
         soc-edge-portrayal (SimpleEdgePortrayal2D. (Color. 140 140 140) nil)
-        talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 140 0 0) nil)]
+        talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 200 0 0) nil)]
     ;; set up node display
     (.clear field)
     (lay/set-indiv-locs! rng indiv-position-jitter field communities) ; jitter makes easier to distinguish links that just happen to cross a node
@@ -118,7 +136,7 @@
     ;; set up actual communication network link display (links added transiently during ticks):
     (.clear talk-net)
     (.setShape talk-edge-portrayal SimpleEdgePortrayal2D/SHAPE_TRIANGLE)
-    (.setBaseWidth talk-edge-portrayal 0.5) ; width at base (from end) of triangle
+    (.setBaseWidth talk-edge-portrayal 1.0) ; width at base (from end) of triangle
     ;; set up display
     (doto display
       (.reset )
