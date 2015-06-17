@@ -2,6 +2,13 @@
 ;;; is distributed under the Gnu General Public License version 3.0 as
 ;;; specified in the file LICENSE.
 
+;; Note: Traditional MASON models put e.g. Continuous2D and Network here, 
+;; and then the GUIState class would normally use those instances from 
+;; this class, passing them to portrayals created in the GUIState class.
+;; Since the underlying model doesn't need spatial relations or explicit
+;; link representations, I only create the Continuous2D and Network objects
+;; in the GUIState class (SimWithGUI), where they're needed to be used by portrayals.
+
 ;; IN THIS VERSION:
 ;; * There is a step function in each agent, i.e. Indiv implements Steppable.
 ;; * The scheduler calls the agents' (indivs') step functions in random order on each timestep.

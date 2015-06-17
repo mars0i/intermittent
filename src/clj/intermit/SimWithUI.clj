@@ -2,6 +2,12 @@
 ;;; is distributed under the Gnu General Public License version 3.0 as
 ;;; specified in the file LICENSE.
 
+;; Note: Traditional MASON models put e.g. Continuous2D and Network in another
+;; class that's central to the model.  This class would normally use those
+;; instances from the other class, passing them to portrayals created here.
+;; Since the underlying model (Sim) doesn't need spatial relations or explicit
+;; link representations, I create the Continuous2D and Network here, because
+;; they're needed by the portrayals.
 
 (ns intermit.SimWithUI
   (:require [intermit.layout :as lay]
@@ -30,17 +36,15 @@
   [& args]
   (let [field (Continuous2D. 1.0 125 100)
         field-portrayal (ContinuousPortrayal2D.)
-        net (Network.)
-        net-portrayal (NetworkPortrayal2D.)]
-    ;; setField on the net-portrayal here doesn't work--no error, but no net links displayed
-    ;; setField on field-portrayal works, but I moved it to near where the net-portrayal version went.
+        socnet (Network.)
+        socnet-portrayal (NetworkPortrayal2D.)]
     (.setField field-portrayal field)
-    (.setField net-portrayal (SpatialNetwork2D. field net))
+    (.setField socnet-portrayal (SpatialNetwork2D. field socnet))
     [(vec args) {:display (atom nil)
                  :display-frame (atom nil)
                  :field-portrayal field-portrayal
-                 :net-portrayal net-portrayal
-                 :net net}]))
+                 :socnet-portrayal socnet-portrayal
+                 :socnet socnet}]))
 
 (defn get-display [this] @(:display (.iState this)))
 (defn set-display [this newval] (reset! (:display (.iState this)) newval))
@@ -48,8 +52,8 @@
 (defn set-display-frame [this newval] (reset! (:display-frame (.iState this)) newval))
 (defn get-field-portrayal [this] (:field-portrayal (.iState this)))
 (defn get-field [this] (.getField (:field-portrayal (.iState this))))
-(defn get-net-portrayal [this] (:net-portrayal (.iState this)))
-(defn get-net [this] (:net (.iState this)))
+(defn get-net-portrayal [this] (:socnet-portrayal (.iState this)))
+(defn get-net [this] (:socnet (.iState this)))
 
 ;; Override methods in sim.display.GUIState so that UI can make graphs, etc.
 (defn -getSimulationInspectedObject [this] (.state this))
@@ -77,8 +81,8 @@
         rng (.random sim)
         field-portrayal (get-field-portrayal this-gui)
         field (.getField field-portrayal)
-        net-portrayal (get-net-portrayal this-gui)
-        net (get-net this-gui)
+        socnet-portrayal (get-net-portrayal this-gui)
+        socnet (get-net this-gui)
         display (get-display this-gui)
         communities (s/get-communities sim)
         population (s/get-population sim)
@@ -95,12 +99,12 @@
     (lay/set-indiv-locs! rng indiv-position-jitter field communities) ; jitter makes easier to distinguish links that just happen to cross a node
     (.setPortrayalForClass field-portrayal intermit.Sim.Indiv indiv-portrayal)
     ;; set up network link display:
-    (.clear net)
-    (lay/set-links! net population) ; set-links! sets edges' info fields to nil (null): edges have no weight, so weight defaults to 1.0
+    (.clear socnet)
+    (lay/set-links! socnet population) ; set-links! sets edges' info fields to nil (null): edges have no weight, so weight defaults to 1.0
     (.setShape edge-portrayal SimpleEdgePortrayal2D/SHAPE_LINE_BUTT_ENDS) ; Default SHAPE_THIN_LINE doesn't allow changing thickness. Other differences don't matter, if thinner than nodes.
     (.setBaseWidth edge-portrayal 0.15) ; line width
     ;(.setAdjustsThickness edge-portrayal true) ;(.setBaseWidth edge-portrayal 1.0) ; trying to set line thicknesses
-    (.setPortrayalForAll net-portrayal edge-portrayal)
+    (.setPortrayalForAll socnet-portrayal edge-portrayal)
     ;; set up display
     (doto display
       (.reset )
