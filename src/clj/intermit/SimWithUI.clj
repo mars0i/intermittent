@@ -21,12 +21,7 @@
     :main true
     :exposes {state {:get getState}}  ; accessor for field in superclass
     :exposes-methods {start superStart, quit superQuit, init superInit, getInspector superGetInspector}
-    ;; WHICH OF THESE DO I NEED (if any)?:
-    :methods [[getDisplay [] sim.display.Display2D]
-              [setDisplay [sim.display.Display2D] void]
-              [getDisplayFrame [] javax.swing.JFrame]
-              [setDisplayFrame [javax.swing.JFrame] void]
-              [setupPortrayals [] void]]
+    ;:methods []
     :state iState
     :init init-instance-state))
 
@@ -48,10 +43,10 @@
                  :net-portrayal net-portrayal
                  :net net}]))
 
-(defn -getDisplay [this] @(:display (.iState this)))
-(defn -setDisplay [this newval] (reset! (:display (.iState this)) newval))
-(defn -getDisplayFrame [this] @(:display-frame (.iState this)))
-(defn -setDisplayFrame [this newval] (reset! (:display-frame (.iState this)) newval))
+(defn get-display [this] @(:display (.iState this)))
+(defn set-display [this newval] (reset! (:display (.iState this)) newval))
+(defn get-display-frame [this] @(:display-frame (.iState this)))
+(defn set-display-frame [this newval] (reset! (:display-frame (.iState this)) newval))
 (defn -getSimulationInspectedObject [this] (.state this))
 
 (defn get-field-portrayal [this] (:field-portrayal (.iState this)))
@@ -68,6 +63,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;
 
+(declare setup-portrayals)
+
 (defn -main
   [& args]
   (let [vid (intermit.SimWithUI. (intermit.Sim. (System/currentTimeMillis)))]
@@ -78,9 +75,9 @@
 (defn -start
   [this]
   (.superStart this) ; this will call start() on the sim, i.e. our SimState object
-  (.setupPortrayals this))
+  (setup-portrayals this))
 
-(defn -setupPortrayals
+(defn setup-portrayals
   [this-gui]  ; instead of 'this': avoid confusion with proxy below
   (let [sim (.getState this-gui)
         rng (.random sim)
@@ -88,7 +85,7 @@
         field (.getField field-portrayal)
         net-portrayal (get-net-portrayal this-gui)
         net (get-net this-gui)
-        display (.getDisplay this-gui)
+        display (get-display this-gui)
         communities (s/get-communities sim)
         population (s/get-population sim)
         indiv-portrayal (OrientedPortrayal2D.  ; what this represents is set in the Oriented2D part of Indiv in Sim.clj
@@ -128,13 +125,13 @@
   (.superInit this controller)
   (let [display (Display2D. 800 600 this)
         display-frame (.createFrame display)]
-    (.setDisplay this display)
+    (set-display this display)
     (doto display
       (.setClipping false)
       (.attach (get-net-portrayal this) "Net")
       (.attach (get-field-portrayal this) "Field"))
     ;; set up display frame:
-    (.setDisplayFrame this display-frame)
+    (set-display-frame this display-frame)
     (.registerFrame controller display-frame)
     (doto display-frame 
       (.setTitle "Intermittent")
@@ -144,8 +141,8 @@
 (defn -quit
   [this]
   (.superQuit this)  ; combine in doto?
-  (when-let [display-frame (.getDisplayFrame this)]
+  (when-let [display-frame (get-display-frame this)]
     (.dispose display-frame))
   (doto this
-    (.setDisplayFrame nil)
-    (.setDisplay nil)))
+    (set-display-frame nil)
+    (set-display nil)))
