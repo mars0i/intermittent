@@ -18,15 +18,6 @@
 
 (declare near-factors middle-factors middle-factors-helper set-community-locs! set-indiv-locs! indiv-locs lattice-locs add-jitter-to-locs)
 
-;; Might be unused.
-(defn set-community-locs!
-  "Insert communities into field at locations calculated so that they are spread
-  out in a lattice across the field."
-  [field communities]
-  (let [[_ _ locs] (lattice-locs 0.0 0.0 (.getWidth field) (.getHeight field) communities)] ; TODO offset parameters need adjustment
-    (doseq [[community x-loc y-loc] locs]
-      (.setObjectLocation field community (Double2D. x-loc y-loc)))))
-
 (defn set-indiv-locs!
   "Insert indivs into field at locations calculated so that they're spread out
   in a lattice of lattices across the field.  If rng and stddev are added, adds
@@ -124,3 +115,13 @@
       (when-not (.getEdge network neighbor indiv) ; if undirected, order doesn't matter
         (.addEdge network indiv neighbor nil))))) ; automatically adds nodes, too.
 
+
+;; Not currently in use (?).
+;; Offset parameters need adjustment
+(defn set-community-locs!
+  "Insert communities into field at locations calculated so that they are spread
+  out in a lattice across the field."
+  [field communities]
+  (let [[_ _ locs] (lattice-locs 0.0 0.0 (.getWidth field) (.getHeight field) communities)]
+    (doseq [[community x-loc y-loc] locs]
+      (.setObjectLocation field community (Double2D. x-loc y-loc)))))
