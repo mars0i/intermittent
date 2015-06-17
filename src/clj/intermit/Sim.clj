@@ -89,6 +89,7 @@
   (getSuccess [this])   
   (getRelig [this])     
   (getNeighbors [this]) 
+  (get-prev-speaker [this])
   (add-neighbor! [this newval])
   (update-success! [this sim])
   (copy-relig! [this sim population]))
@@ -108,12 +109,13 @@
 ;; but it's faster than atoms, and these fields get accessed a lot.
 
 
-(deftype Indiv [id ^:volatile-mutable success ^:volatile-mutable relig ^:volatile-mutable neighbors]
+(deftype Indiv [id ^:volatile-mutable success ^:volatile-mutable relig ^:volatile-mutable neighbors ^:volatile-mutable prevspeaker]
   IndivP
     (getId [this] id)
     (getSuccess [this] success)
     (getRelig [this] relig)
     (getNeighbors [this] neighbors)
+    (get-prev-speaker [this] prevspeaker)
     (add-neighbor! [this new-neighbor] (set! neighbors (conj neighbors new-neighbor)))
     (update-success! [this sim-state]
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
@@ -127,12 +129,14 @@
             ^InstanceState istate (.instanceState sim)
             ^Poisson poisson @(.poisson istate)
             ^double stddev @(.tranStddev istate)]
+        (set! prevspeaker nil) ; maybe refactor when-let, when below to make this the alt condition
         (when-let [^Indiv best-model (choose-most-successful 
                                        rng
                                        (into neighbors ;   (a) neighbors, (b) 0 or more random indivs from entire pop
                                              (choose-others-from-pop rng poisson this population)))]
           (when (> (getSuccess best-model) success)     ; is most successful other, better than me?
-            (set! relig (add-noise rng stddev (getRelig best-model)))))))
+            (set! relig (add-noise rng stddev (getRelig best-model)))
+            (set! prevspeaker best-model)))))
   Steppable
     ;; Note that by maintaining only a single version of vars, and allowing each indiv to be stepped in random order, we allow per-tick path dependencies.
     (step [this sim-state] 
@@ -214,7 +218,8 @@
     (str (gensym "i")) ; id
     (.nextDouble (.random sim-state))  ; success
     (.nextDouble (.random sim-state))  ; relig
-    []))
+    []   ; neighbors
+    nil))  ; prevspeaker
 
 (defn binomial-link-indivs!
   "For each pair of indivs, with probability prob, make them eachothers' neighbors.
