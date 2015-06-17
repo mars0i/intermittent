@@ -121,8 +121,8 @@
                                 (set! (.-paint this) (Color. shade 0 (- 255 shade))) ; paint var is in OvalPortrayal2D
                                 (proxy-super draw indiv graphics info))))
                           0 1.75 (Color. 0 0 0) OrientedPortrayal2D/SHAPE_LINE) ; color is of of orientation line/shape
-        soc-edge-portrayal (SimpleEdgePortrayal2D. (Color. 140 140 140) nil)
-        talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 200 0 0) nil)]
+        soc-edge-portrayal (SimpleEdgePortrayal2D. (Color. 150 150 150) nil)
+        talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 120 255 120 110) nil)]
     ;; set up node display
     (.clear field)
     (lay/set-indiv-locs! rng indiv-position-jitter field communities) ; jitter makes easier to distinguish links that just happen to cross a node
@@ -136,7 +136,8 @@
     ;; set up actual communication network link display (links added transiently during ticks):
     (.clear talk-net)
     (.setShape talk-edge-portrayal SimpleEdgePortrayal2D/SHAPE_TRIANGLE)
-    (.setBaseWidth talk-edge-portrayal 1.0) ; width at base (from end) of triangle
+    (.setBaseWidth talk-edge-portrayal 0.50) ; width at base (from end) of triangle
+    (.setPortrayalForAll talk-net-portrayal talk-edge-portrayal)
     ;; set up display
     (doto display
       (.reset )
