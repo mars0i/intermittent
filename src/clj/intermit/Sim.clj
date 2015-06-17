@@ -46,7 +46,9 @@
                         [setGlobalInterlocMean [double] void]
                         [getSuccessStddev [] double]
                         [setSuccessStddev [double] void]
-                        [domSuccessStddev [] java.lang.Object]]
+                        [domSuccessStddev [] java.lang.Object]
+                        [getReligDistribution [] "[D" ]
+                        [getSuccessDistribution [] "[D" ]]
               :state instanceState
               :init init-instance-state
               :main true))
@@ -301,6 +303,9 @@
 ;; Useful since the fields contain atoms:
 (defn get-communities [this] @(.communities ^InstanceState (.instanceState this)))
 (defn get-population [this] @(.population ^InstanceState (.instanceState this)))
+
+(defn -getReligDistribution [^Sim this] (double-array (map getRelig (get-population this))))
+(defn -getSuccessDistribution [^Sim this] (double-array (map getSuccess (get-population this))))
 
 (defn -main
   [& args]

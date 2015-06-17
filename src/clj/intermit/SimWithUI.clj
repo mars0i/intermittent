@@ -66,7 +66,10 @@
 
 ;; Override methods in sim.display.GUIState so that UI can make graphs, etc.
 (defn -getSimulationInspectedObject [this] (.state this))
-(defn -getInspector [this] (let [i (.superGetInspector this)] (.setVolatile i true) i))
+(defn -getInspector [this]
+  (let [i (.superGetInspector this)]
+    (.setVolatile i true)
+    i))
 
 ;;;;;;;;;;;;;;;;;;;;
 
