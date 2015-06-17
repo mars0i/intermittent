@@ -12,8 +12,8 @@
   (:import [sim.field.continuous Continuous2D]
            [sim.util Double2D]))
 
-(def community-shrink 0.5)
-(def community-offset 4.0)
+(def community-shrink 0.75)
+(def community-offset 0.0)
 (def community-offset-factor 1.25)
 
 (declare near-factors middle-factors middle-factors-helper set-community-locs! set-indiv-locs! indiv-locs lattice-locs add-jitter-to-locs)

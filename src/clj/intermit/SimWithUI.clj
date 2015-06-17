@@ -123,7 +123,7 @@
                               (let [shade (int (* (.getRelig indiv) 255))]
                                 (set! (.-paint this) (Color. shade 0 (- 255 shade))) ; paint var is in OvalPortrayal2D
                                 (proxy-super draw indiv graphics info))))
-                          0 1.75 (Color. 0 0 0) OrientedPortrayal2D/SHAPE_LINE) ; color is of of orientation line/shape
+                          0 1.75 (Color. 255 175 175) OrientedPortrayal2D/SHAPE_LINE) ; color is of of orientation line/shape
         soc-edge-portrayal (SimpleEdgePortrayal2D. (Color. 150 150 150) nil)
         talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 120 255 120 110) nil)]
     ;; set up node display
@@ -144,7 +144,7 @@
     ;; set up display
     (doto display
       (.reset )
-      (.setBackdrop Color/white)
+      (.setBackdrop (Color. 10 10 10)) ; almost black
       (.repaint))))
 
 
