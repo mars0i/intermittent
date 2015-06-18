@@ -227,7 +227,7 @@
     nil))  ; prevspeaker
 
 (defn binomial-link-indivs!
-  "For each pair of indivs, with probability prob, make them eachothers' neighbors.
+  "For each pair of indivs, with probability prob, make them each others' neighbors.
   Set prob to 1 to link all indivs to each other.  (This is a 'binomial' [edge
   dist], 'Poisson' [degree dist], or 'Erdös-Rényi' random graph.)"
   [rng prob indivs]
@@ -238,6 +238,26 @@
                 indiv-j (nth indivs j)]]
       (add-neighbor! indiv-i indiv-j)
       (add-neighbor! indiv-j indiv-i)))
+
+;; TODO need to randomly permute islands or butterflies (sim.Engine.RandomSequence seems to work only on Steppables)
+;(defn let-no-indiv-be-an-island
+;  "Given indivs, some of whom may have neighbors, makes sure that everyone has
+;  at least one neighbor by stealing links (rewiring) from those with the most
+;  links, and giving those links to the lonely.  If there are not enough links
+;  for everyone to have at least one, adds links.  (Not particularly efficient.)"
+;  [rng prob indivs]
+;  (when-let [islands (seq (filter #(empty? (.getNeighbors %)) indivs))] ; seq turns () into nil
+;    (let [max-degree (reduce #(max %1 (count (.getNeighbors 2%))) 0 indivs)]
+;      (if (> max-degree 1)
+;        (doseq [butterfly (filter #(== max-degree (count (.getNeighbors %))) indivs)
+;                :let [indiv (first indivs)
+;                      rest-indivs (rest-indivs)]]
+;          (let [neighbors (.getNeighbors butterfly)
+;                moving-neighbor (nth neighbors (.randInt rng (count neighbors)))
+;                staying-neighbors (remove #(identical? moving %) neighbors)]
+;            (set-neighbors! butterfly staying-neighbors)
+;            (set-neighbors! (first indivs) [moving-neighbor])
+
 
 ;; poss define other linkers here
 ;; http://www.drdobbs.com/architecture-and-design/simulating-small-world-networks/184405611
