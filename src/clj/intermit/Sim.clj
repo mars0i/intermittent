@@ -42,8 +42,10 @@
                         [domLinkProb [] java.lang.Object]
                         [getTranStddev [] double]
                         [setTranStddev [double] void]
+                        [domTranStddev [] java.lang.Object]
                         [getGlobalInterlocMean [] double]
                         [setGlobalInterlocMean [double] void]
+                        [domGlobalInterlocMean [] java.lang.Object]
                         [getSuccessStddev [] double]
                         [setSuccessStddev [double] void]
                         [domSuccessStddev [] java.lang.Object]
@@ -331,11 +333,13 @@
 (defn -domLinkProb [this] (Interval. 0.0 1.0))
 (defn -getTranStddev ^double [^Sim this] @(.tranStddev ^InstanceState (.instanceState this)))
 (defn -setTranStddev [^Sim this ^double newval] (reset! (.tranStddev ^InstanceState (.instanceState this)) newval))
+(defn -domTranStddev [this] (Interval. 0.0 1.0))
 (defn -getGlobalInterlocMean ^double [^Sim this] @(.globalInterlocMean ^InstanceState (.instanceState this)))
 (defn -setGlobalInterlocMean [^Sim this ^double newval] 
   (let [^InstanceState istate (.instanceState this)]
     (reset! (.globalInterlocMean istate) newval) ; store it so that UI can display its current value
     (.setMean ^Poisson @(.poisson istate) newval)))  ; allows changing value during the middle of a run.
+(defn -domGlobalInterlocMean [this] (Interval. 0.0 100.0)) ; a mean for a Poisson distribution.  Should go high enough to guarantee that everyone talks to everyone, but large numbers choke the app.
 (defn -getSuccessStddev ^double [^Sim this] @(.successStddev ^InstanceState (.instanceState this)))
 (defn -setSuccessStddev [^Sim this ^double newval] (reset! (.successStddev ^InstanceState (.instanceState this)) newval))
 (defn -domSuccessStddev [this] (Interval. 0.0 1.0)) ; since success ranges from 0 to 1, it doesn't make sense to have a stddev that's much larger than about 0.7.
