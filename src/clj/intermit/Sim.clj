@@ -239,6 +239,24 @@
       (add-neighbor! indiv-i indiv-j)
       (add-neighbor! indiv-j indiv-i)))
 
+;; Simple version
+;; Doesn't guarantee that all members of community are connected (that's a harder test)
+;; TODO DOESN'T SEEM TO WORK RIGHT.
+(defn add-until-min-links!
+  "Given indivs, some of whom may have neighbors, makes sure that everyone has
+  at least one neighbor by randomly adding neighbors to anyone who has none."
+  [rng min-links indivs]
+  (when-let [islands (seq (filter #(empty? (.getNeighbors %)) indivs))] ; seq turns () into nil
+    (doseq [island islands]
+      (loop [remaining-links min-links
+             indivs indivs]
+        (when (pos? remaining-links)
+          (let [indiv (nth indivs (.nextInt rng (count indivs)))]
+            (add-neighbor! island indiv)
+            (recur (dec remaining-links) (remove #(identical? indiv %) indivs))))))))
+
+
+
 ;; TODO need to randomly permute islands or butterflies (sim.Engine.RandomSequence seems to work only on Steppables)
 ;(defn let-no-indiv-be-an-island
 ;  "Given indivs, some of whom may have neighbors, makes sure that everyone has
@@ -253,7 +271,7 @@
 ;                :let [indiv (first indivs)
 ;                      rest-indivs (rest-indivs)]]
 ;          (let [neighbors (.getNeighbors butterfly)
-;                moving-neighbor (nth neighbors (.randInt rng (count neighbors)))
+;                moving-neighbor (nth neighbors (.nextInt rng (count neighbors)))
 ;                staying-neighbors (remove #(identical? moving %) neighbors)]
 ;            (set-neighbors! butterfly staying-neighbors)
 ;            (set-neighbors! (first indivs) [moving-neighbor])
@@ -281,8 +299,10 @@
 (defn make-community-of-indivs
   "Make a community with size number of indivs in it."
   [sim size]
-  (let [indivs  (vec (repeatedly size #(make-indiv sim)))] ; it's short; don't wait for late-realization bugs.
-    (binomial-link-indivs! (.random sim) @(.linkProb (.instanceState sim)) indivs) 
+  (let [indivs  (vec (repeatedly size #(make-indiv sim))) ; it's short; don't wait for late-realization bugs.
+        rng (.random sim)]
+    (binomial-link-indivs! rng @(.linkProb (.instanceState sim)) indivs) 
+    ;(add-until-min-links! rng 1 indivs) 
     (Community. (str (gensym "c")) indivs)))
 
 
