@@ -31,7 +31,7 @@
     :state iState
     :init init-instance-state))
 
-(def indiv-position-jitter 0.40) ; stddev of noise added to node positions to make it easier to distinguish links to vs those that just happen to cross a node
+(def indiv-position-jitter 0.5) ; stddev of noise added to node positions to make it easier to distinguish links to vs those that just happen to cross a node
 
 (defn -init-instance-state
   [& args]
@@ -125,7 +125,7 @@
                                 (proxy-super draw indiv graphics info))))
                           0 1.75 (Color. 255 175 175) OrientedPortrayal2D/SHAPE_LINE) ; color is of of orientation line/shape
         soc-edge-portrayal (SimpleEdgePortrayal2D. (Color. 150 150 150) nil)
-        talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 120 255 120 110) nil)]
+        talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 120 255 120 110) nil)] ; a beige: (Color. 210 180 140 110)
     ;; set up node display
     (.clear field)
     (lay/set-indiv-locs! rng indiv-position-jitter field communities) ; jitter makes easier to distinguish links that just happen to cross a node
