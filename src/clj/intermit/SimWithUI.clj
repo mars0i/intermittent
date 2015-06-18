@@ -31,7 +31,7 @@
     :state iState
     :init init-instance-state))
 
-(def indiv-position-jitter 0.30) ; stddev of noise added to node positions to make it easier to distinguish links to vs those that just happen to cross a node
+(def indiv-position-jitter 0.40) ; stddev of noise added to node positions to make it easier to distinguish links to vs those that just happen to cross a node
 
 (defn -init-instance-state
   [& args]
@@ -163,8 +163,8 @@
     (doto display
       (.setClipping false)
       (.attach (get-soc-net-portrayal this) "Soc net")   ; The order of attaching is the order of painting.
-      (.attach (get-field-portrayal this) "Field")       ; what's attached later will appear on top of what's earlier. 
-      (.attach (get-talk-net-portrayal this) "Talk net"))
+      (.attach (get-talk-net-portrayal this) "Talk net") ; what's attached later will appear on top of what's earlier. 
+      (.attach (get-field-portrayal this) "Field"))
     ;; set up display frame:
     (set-display-frame this display-frame)
     (.registerFrame controller display-frame)
