@@ -12,7 +12,7 @@
                    "resources/mason.18.jar"
                    "resources/portfolio.jar"]
   ;:java-source-paths ["src/java"]
-  :dependencies [[org.clojure/clojure "1.7.0-RC1"]
+  :dependencies [[org.clojure/clojure "1.7.0-RC2"]
                  [org.clojure/math.numeric-tower "0.0.4"]]
   :source-paths ["src/clj"]
   :jvm-opts ["-Xmx2g"]
