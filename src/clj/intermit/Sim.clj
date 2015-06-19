@@ -66,10 +66,10 @@
 (def initial-global-interloc-mean 0.025)
 (def initial-success-stddev 0.1)
 
-(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-noise avg-relig)
+(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-noise avg-relig getRelig getSuccess get-population)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; INSTANCESTATE
+;; INSTANCESTATE FOR SIM CLASS
 ;; Used to hold mutable data in Sim's instanceState variable
 ;; Need def here so we can type-hint Indiv's methods
 
@@ -83,6 +83,61 @@
                         communities             ; holds the communities
                         population              ; holds all individuals
                         poisson])
+
+(defn -init-instance-state
+  "Initializes instance-state when an instance of class Sim is created."
+  [seed]
+  [[seed] (InstanceState. (atom initial-num-communities)
+                          (atom initial-mean-indivs-per-community) 
+                          (atom initial-link-prob)
+                          (atom initial-tran-stddev)
+                          (atom initial-global-interloc-mean)
+                          (atom initial-success-stddev)
+                          (atom nil)
+                          (atom nil)
+                          (atom nil))])
+
+(defn -getNumCommunities ^long [^Sim this] @(.numCommunities ^InstanceState (.instanceState this)))
+(defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities ^InstanceState (.instanceState this)) newval))
+(defn -getMeanIndivsPerCommunity ^long [^Sim this] @(.meanIndivsPerCommunity ^InstanceState (.instanceState this)))
+(defn -setMeanIndivsPerCommunity [^Sim this ^long newval] (reset! (.meanIndivsPerCommunity ^InstanceState (.instanceState this)) newval))
+(defn -getLinkProb ^double [^Sim this] @(.linkProb ^InstanceState (.instanceState this)))
+(defn -setLinkProb [^Sim this ^double newval] (reset! (.linkProb ^InstanceState (.instanceState this)) newval))
+(defn -domLinkProb [this] (Interval. 0.0 1.0))
+(defn -getTranStddev ^double [^Sim this] @(.tranStddev ^InstanceState (.instanceState this)))
+(defn -setTranStddev [^Sim this ^double newval] (reset! (.tranStddev ^InstanceState (.instanceState this)) newval))
+(defn -domTranStddev [this] (Interval. 0.0 1.0))
+(defn -getGlobalInterlocMean ^double [^Sim this] @(.globalInterlocMean ^InstanceState (.instanceState this)))
+(defn -setGlobalInterlocMean [^Sim this ^double newval] 
+  (let [^InstanceState istate (.instanceState this)]
+    (reset! (.globalInterlocMean istate) newval) ; store it so that UI can display its current value
+    (.setMean ^Poisson @(.poisson istate) newval)))  ; allows changing value during the middle of a run.
+(defn -domGlobalInterlocMean [this] (Interval. 0.0 100.0)) ; a mean for a Poisson distribution.  Should go high enough to guarantee that everyone talks to everyone, but large numbers choke the app.
+(defn -getSuccessStddev ^double [^Sim this] @(.successStddev ^InstanceState (.instanceState this)))
+(defn -setSuccessStddev [^Sim this ^double newval] (reset! (.successStddev ^InstanceState (.instanceState this)) newval))
+(defn -domSuccessStddev [this] (Interval. 0.0 1.0)) ; since success ranges from 0 to 1, it doesn't make sense to have a stddev that's much larger than about 0.7.
+
+;; Useful since the fields contain atoms:
+(defn get-communities [this] @(.communities ^InstanceState (.instanceState this)))
+(defn get-population [this] @(.population ^InstanceState (.instanceState this)))
+
+;; EXPERIMENT (FIXME)
+(let [timeseries (atom [])                 ; better living through closures.  temporarily.
+      tick (atom 0.0)]                     ; TODO TODO PUT THIS IN init structure so that it will get reinit'ed by start().  right now it carries over from one run to the next, which is bad.
+  (defn -getMeanReligTimeSeries [^Sim this]; ALSO GET THE TIMESTEP FROM THE RIGHT PLACE RATHER THAN MAKING IT MYSELF. 
+    (let [population (get-population this)
+          size (count population)]
+      (when (pos? size) ; prevent exception when GUI calls this during initialization
+        (swap! timeseries conj 
+               (sim.util.Double2D. @tick
+                                   (/ (reduce #(+ %1 (getRelig %2)) 0.0 population)
+                                      size)))
+        (swap! tick inc))
+      (into-array sim.util.Double2D @timeseries))))
+
+(defn -getReligDistribution [^Sim this] (double-array (map getRelig (get-population this))))
+(defn -getSuccessDistribution [^Sim this] (double-array (map getSuccess (get-population this))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PROTOCOLS/INTERFACES
@@ -242,49 +297,6 @@
       (add-neighbor! indiv-i indiv-j)
       (add-neighbor! indiv-j indiv-i)))
 
-;; Simple version
-;; Doesn't guarantee that all members of community are connected (that's a harder test)
-;; TODO DOESN'T SEEM TO WORK RIGHT.
-(defn add-until-min-links!
-  "Given indivs, some of whom may have neighbors, makes sure that everyone has
-  at least one neighbor by randomly adding neighbors to anyone who has none."
-  [rng min-links indivs]
-  (when-let [islands (seq (filter #(empty? (.getNeighbors %)) indivs))] ; seq turns () into nil
-    (doseq [island islands]
-      (loop [remaining-links min-links
-             indivs indivs]
-        (when (pos? remaining-links)
-          (let [indiv (nth indivs (.nextInt rng (count indivs)))]
-            (add-neighbor! island indiv)
-            (recur (dec remaining-links) (remove #(identical? indiv %) indivs))))))))
-
-
-
-;; TODO need to randomly permute islands or butterflies (sim.Engine.RandomSequence seems to work only on Steppables)
-;(defn let-no-indiv-be-an-island
-;  "Given indivs, some of whom may have neighbors, makes sure that everyone has
-;  at least one neighbor by stealing links (rewiring) from those with the most
-;  links, and giving those links to the lonely.  If there are not enough links
-;  for everyone to have at least one, adds links.  (Not particularly efficient.)"
-;  [rng prob indivs]
-;  (when-let [islands (seq (filter #(empty? (.getNeighbors %)) indivs))] ; seq turns () into nil
-;    (let [max-degree (reduce #(max %1 (count (.getNeighbors 2%))) 0 indivs)]
-;      (if (> max-degree 1)
-;        (doseq [butterfly (filter #(== max-degree (count (.getNeighbors %))) indivs)
-;                :let [indiv (first indivs)
-;                      rest-indivs (rest-indivs)]]
-;          (let [neighbors (.getNeighbors butterfly)
-;                moving-neighbor (nth neighbors (.nextInt rng (count neighbors)))
-;                staying-neighbors (remove #(identical? moving %) neighbors)]
-;            (set-neighbors! butterfly staying-neighbors)
-;            (set-neighbors! (first indivs) [moving-neighbor])
-
-
-;; poss define other linkers here
-;; http://www.drdobbs.com/architecture-and-design/simulating-small-world-networks/184405611
-;; https://compuzzle.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
-;; https://codepretty.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
 
@@ -310,63 +322,7 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Sim: class for overall system
-
-(defn -init-instance-state
-  "Initializes instance-state when an instance of class Sim is created."
-  [seed]
-  [[seed] (InstanceState. (atom initial-num-communities)
-                          (atom initial-mean-indivs-per-community) 
-                          (atom initial-link-prob)
-                          (atom initial-tran-stddev)
-                          (atom initial-global-interloc-mean)
-                          (atom initial-success-stddev)
-                          (atom nil)
-                          (atom nil)
-                          (atom nil))])
-
-(defn -getNumCommunities ^long [^Sim this] @(.numCommunities ^InstanceState (.instanceState this)))
-(defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities ^InstanceState (.instanceState this)) newval))
-(defn -getMeanIndivsPerCommunity ^long [^Sim this] @(.meanIndivsPerCommunity ^InstanceState (.instanceState this)))
-(defn -setMeanIndivsPerCommunity [^Sim this ^long newval] (reset! (.meanIndivsPerCommunity ^InstanceState (.instanceState this)) newval))
-(defn -getLinkProb ^double [^Sim this] @(.linkProb ^InstanceState (.instanceState this)))
-(defn -setLinkProb [^Sim this ^double newval] (reset! (.linkProb ^InstanceState (.instanceState this)) newval))
-(defn -domLinkProb [this] (Interval. 0.0 1.0))
-(defn -getTranStddev ^double [^Sim this] @(.tranStddev ^InstanceState (.instanceState this)))
-(defn -setTranStddev [^Sim this ^double newval] (reset! (.tranStddev ^InstanceState (.instanceState this)) newval))
-(defn -domTranStddev [this] (Interval. 0.0 1.0))
-(defn -getGlobalInterlocMean ^double [^Sim this] @(.globalInterlocMean ^InstanceState (.instanceState this)))
-(defn -setGlobalInterlocMean [^Sim this ^double newval] 
-  (let [^InstanceState istate (.instanceState this)]
-    (reset! (.globalInterlocMean istate) newval) ; store it so that UI can display its current value
-    (.setMean ^Poisson @(.poisson istate) newval)))  ; allows changing value during the middle of a run.
-(defn -domGlobalInterlocMean [this] (Interval. 0.0 100.0)) ; a mean for a Poisson distribution.  Should go high enough to guarantee that everyone talks to everyone, but large numbers choke the app.
-(defn -getSuccessStddev ^double [^Sim this] @(.successStddev ^InstanceState (.instanceState this)))
-(defn -setSuccessStddev [^Sim this ^double newval] (reset! (.successStddev ^InstanceState (.instanceState this)) newval))
-(defn -domSuccessStddev [this] (Interval. 0.0 1.0)) ; since success ranges from 0 to 1, it doesn't make sense to have a stddev that's much larger than about 0.7.
-
-;; Useful since the fields contain atoms:
-(defn get-communities [this] @(.communities ^InstanceState (.instanceState this)))
-(defn get-population [this] @(.population ^InstanceState (.instanceState this)))
-
-;; EXPERIMENT (FIXME)
-(let [timeseries (atom [])                 ; better living through closures.  temporarily.
-      tick (atom 0.0)]                     ; TODO TODO PUT THIS IN init structure so that it will get reinit'ed by start().  right now it carries over from one run to the next, which is bad.
-  (defn -getMeanReligTimeSeries [^Sim this]; ALSO GET THE TIMESTEP FROM THE RIGHT PLACE RATHER THAN MAKING IT MYSELF. 
-    (let [population (get-population this)
-          size (count population)]
-      (when (pos? size) ; prevent exception when GUI calls this during initialization
-        (swap! timeseries conj 
-               (sim.util.Double2D. @tick
-                                   (/ (reduce #(+ %1 (getRelig %2)) 0.0 population)
-                                      size)))
-        (swap! tick inc))
-      (into-array sim.util.Double2D @timeseries))))
-
-
-(defn -getReligDistribution [^Sim this] (double-array (map getRelig (get-population this))))
-(defn -getSuccessDistribution [^Sim this] (double-array (map getSuccess (get-population this))))
-
+;; Sim: reset of class for overall system
 (defn -main
   [& args]
   (sim.engine.SimState/doLoop intermit.Sim (into-array String args))
@@ -395,3 +351,47 @@
                         (reify Steppable 
                           (step [this sim-state]
                             (doseq [^Indiv indiv population] (update-success! indiv sim-state)))))))
+
+
+
+
+
+;; poss define other linkers 
+;; http://www.drdobbs.com/architecture-and-design/simulating-small-world-networks/184405611
+;; https://compuzzle.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
+;; https://codepretty.wordpress.com/2015/02/03/generating-barabasi-albert-model-graphs-in-clojure/
+
+;; Simple version
+;; Doesn't guarantee that all members of community are connected (that's a harder test)
+;; DOESN'T SEEM TO WORK RIGHT.
+;(defn add-until-min-links!
+;  "Given indivs, some of whom may have neighbors, makes sure that everyone has
+;  at least one neighbor by randomly adding neighbors to anyone who has none."
+;  [rng min-links indivs]
+;  (when-let [islands (seq (filter #(empty? (.getNeighbors %)) indivs))] ; seq turns () into nil
+;    (doseq [island islands]
+;      (loop [remaining-links min-links
+;             indivs indivs]
+;        (when (pos? remaining-links)
+;          (let [indiv (nth indivs (.nextInt rng (count indivs)))]
+;            (add-neighbor! island indiv)
+;            (recur (dec remaining-links) (remove #(identical? indiv %) indivs))))))))
+
+;; Need to randomly permute islands or butterflies (sim.Engine.RandomSequence seems to work only on Steppables)
+;(defn let-no-indiv-be-an-island
+;  "Given indivs, some of whom may have neighbors, makes sure that everyone has
+;  at least one neighbor by stealing links (rewiring) from those with the most
+;  links, and giving those links to the lonely.  If there are not enough links
+;  for everyone to have at least one, adds links.  (Not particularly efficient.)"
+;  [rng prob indivs]
+;  (when-let [islands (seq (filter #(empty? (.getNeighbors %)) indivs))] ; seq turns () into nil
+;    (let [max-degree (reduce #(max %1 (count (.getNeighbors 2%))) 0 indivs)]
+;      (if (> max-degree 1)
+;        (doseq [butterfly (filter #(== max-degree (count (.getNeighbors %))) indivs)
+;                :let [indiv (first indivs)
+;                      rest-indivs (rest-indivs)]]
+;          (let [neighbors (.getNeighbors butterfly)
+;                moving-neighbor (nth neighbors (.nextInt rng (count neighbors)))
+;                staying-neighbors (remove #(identical? moving %) neighbors)]
+;            (set-neighbors! butterfly staying-neighbors)
+;            (set-neighbors! (first indivs) [moving-neighbor])
