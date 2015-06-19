@@ -102,7 +102,7 @@
                             (.clear talk-net)
                             (doseq [indiv population] 
                               (when-let [speaker (s/get-prev-speaker indiv)]
-                                (.addEdge talk-net speaker indiv nil))))))))
+                                (.addEdge talk-net indiv speaker nil))))))))
 
 (defn setup-portrayals
   [this-gui]  ; instead of 'this': avoid confusion with proxy below
