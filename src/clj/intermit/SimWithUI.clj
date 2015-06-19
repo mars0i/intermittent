@@ -102,7 +102,7 @@
                             (.clear talk-net)
                             (doseq [indiv population] 
                               (when-let [speaker (s/get-prev-speaker indiv)]
-                                (.addEdge talk-net indiv speaker nil))))))))
+                                (.addEdge talk-net speaker indiv nil))))))))
 
 (defn setup-portrayals
   [this-gui]  ; instead of 'this': avoid confusion with proxy below
@@ -162,9 +162,9 @@
     (set-display this display)
     (doto display
       (.setClipping false)
-      (.attach (get-soc-net-portrayal this) "Soc net")   ; The order of attaching is the order of painting.
-      (.attach (get-talk-net-portrayal this) "Talk net") ; what's attached later will appear on top of what's earlier. 
-      (.attach (get-field-portrayal this) "Field"))
+      (.attach (get-soc-net-portrayal this) "local networks") ; The order of attaching is the order of painting.
+      (.attach (get-talk-net-portrayal this) "communications") ; what's attached later will appear on top of what's earlier. 
+      (.attach (get-field-portrayal this) "indivs"))
     ;; set up display frame:
     (set-display-frame this display-frame)
     (.registerFrame controller display-frame)
