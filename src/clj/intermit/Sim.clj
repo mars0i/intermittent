@@ -82,7 +82,8 @@
                         successStddev
                         communities             ; holds the communities
                         population              ; holds all individuals
-                        poisson])
+                        poisson
+                        religSeries])
 
 (defn -init-instance-state
   "Initializes instance-state when an instance of class Sim is created."
@@ -93,9 +94,10 @@
                           (atom initial-tran-stddev)
                           (atom initial-global-interloc-mean)
                           (atom initial-success-stddev)
-                          (atom nil)
-                          (atom nil)
-                          (atom nil))])
+                          (atom nil)   ; communities
+                          (atom nil)   ; population
+                          (atom nil)   ; poisson
+                          (atom []))]) ; religSeries
 
 (defn -getNumCommunities ^long [^Sim this] @(.numCommunities ^InstanceState (.instanceState this)))
 (defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities ^InstanceState (.instanceState this)) newval))
@@ -125,8 +127,11 @@
 (let [timeseries (atom [])                 ; better living through closures.  temporarily.
       tick (atom 0.0)]                     ; TODO TODO PUT THIS IN init structure so that it will get reinit'ed by start().  right now it carries over from one run to the next, which is bad.
   (defn -getMeanReligTimeSeries [^Sim this]; ALSO GET THE TIMESTEP FROM THE RIGHT PLACE RATHER THAN MAKING IT MYSELF. 
-    (let [population (get-population this)
+    (let [schedule (.schedule this)
+          population (get-population this)
           size (count population)]
+      (println (.getSteps schedule))
+      (println (.getTime schedule))
       (when (pos? size) ; prevent exception when GUI calls this during initialization
         (swap! timeseries conj 
                (sim.util.Double2D. @tick
