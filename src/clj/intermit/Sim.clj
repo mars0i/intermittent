@@ -25,7 +25,7 @@
   (:require [intermit.utils :as u])
   (:import [sim.engine Steppable Schedule]
            [sim.portrayal Oriented2D]
-           [sim.util Interval]
+           [sim.util Interval Double2D]
            [sim.util.distribution Poisson]
            [ec.util MersenneTwisterFast]
            [java.lang String]
@@ -49,6 +49,7 @@
                         [getSuccessStddev [] double]
                         [setSuccessStddev [double] void]
                         [domSuccessStddev [] java.lang.Object]
+                        [getMeanReligTimeSeries [] "[Lsim.util.Double2D;"]
                         [getReligDistribution [] "[D" ]
                         [getSuccessDistribution [] "[D" ]]
               :state instanceState
@@ -347,6 +348,21 @@
 ;; Useful since the fields contain atoms:
 (defn get-communities [this] @(.communities ^InstanceState (.instanceState this)))
 (defn get-population [this] @(.population ^InstanceState (.instanceState this)))
+
+;; EXPERIMENT (FIXME)
+(let [timeseries (atom [])                 ; better living through closures.  temporarily.
+      tick (atom 0.0)]                     ; TODO TODO PUT THIS IN init structure so that it will get reinit'ed by start().  right now it carries over from one run to the next, which is bad.
+  (defn -getMeanReligTimeSeries [^Sim this]; ALSO GET THE TIMESTEP FROM THE RIGHT PLACE RATHER THAN MAKING IT MYSELF. 
+    (let [population (get-population this)
+          size (count population)]
+      (when (pos? size) ; prevent exception when GUI calls this during initialization
+        (swap! timeseries conj 
+               (sim.util.Double2D. @tick
+                                   (/ (reduce #(+ %1 (getRelig %2)) 0.0 population)
+                                      size)))
+        (swap! tick inc))
+      (into-array sim.util.Double2D @timeseries))))
+
 
 (defn -getReligDistribution [^Sim this] (double-array (map getRelig (get-population this))))
 (defn -getSuccessDistribution [^Sim this] (double-array (map getSuccess (get-population this))))
