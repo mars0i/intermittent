@@ -51,6 +51,7 @@
                         [domSuccessStddev [] java.lang.Object]
                         [getReligDistribution [] "[D" ]
                         [getSuccessDistribution [] "[D" ]
+                        [getMeanReligDistribution [] "[D" ]
                         [getMeanReligTimeSeries [] "[Lsim.util.Double2D;"]]
               :state instanceState
               :init init-instance-state
@@ -127,6 +128,9 @@
 (defn -getSuccessDistribution [^Sim this] (double-array (map getSuccess (get-population this))))
 (defn -getMeanReligTimeSeries [^Sim this] 
   (into-array sim.util.Double2D @(.meanReligSeries ^InstanceState (.instanceState this))))
+
+(defn -getMeanReligDistribution [^Sim this]
+  (double-array (map #(.y %) @(.meanReligSeries ^InstanceState (.instanceState this))))) ; maybe there's a faster way to do this
 
 ;;; MORE METHODS FOR Sim BELOW.
 
@@ -316,7 +320,7 @@
 ;; Sim: reset of class for overall system
 (defn -main
   [& args]
-  (sim.engine.SimState/doLoop intermit.Sim (into-array String args))
+  (sim.engine.SimState/doLoop ^SimState intermit.Sim (into-array String args))
   (System/exit 0))
 
 ;; doall all sequences below.  They're short, so there's no point in waiting for
