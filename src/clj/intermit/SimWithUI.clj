@@ -31,8 +31,6 @@
     :state iState
     :init init-instance-state))
 
-(def indiv-position-jitter 0.5) ; stddev of noise added to node positions to make it easier to distinguish links to vs those that just happen to cross a node
-
 (defn -init-instance-state
   [& args]
   (let [field (Continuous2D. 1.0 125 100)
@@ -125,10 +123,10 @@
                                 (proxy-super draw indiv graphics info))))
                           0 1.75 (Color. 255 175 175) OrientedPortrayal2D/SHAPE_LINE) ; color is of of orientation line/shape
         soc-edge-portrayal (SimpleEdgePortrayal2D. (Color. 150 150 150) nil)
-        talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 120 255 120 110) nil)] ; a beige: (Color. 210 180 140 110)
+        talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 200 225 150 75) nil)] ; here's a beige: (Color. 210 180 140 110)
     ;; set up node display
     (.clear field)
-    (lay/set-indiv-locs! rng indiv-position-jitter field communities) ; jitter makes easier to distinguish links that just happen to cross a node
+    (lay/set-indiv-locs! rng lay/indiv-position-jitter field communities) ; jitter makes easier to distinguish links that just happen to cross a node
     (.setPortrayalForClass field-portrayal intermit.Sim.Indiv indiv-portrayal)
     ;; set up within-community social network link display:
     (.clear soc-net)
@@ -139,7 +137,7 @@
     ;; set up actual communication network link display (links added transiently during ticks):
     (.clear talk-net)
     (.setShape talk-edge-portrayal SimpleEdgePortrayal2D/SHAPE_TRIANGLE)
-    (.setBaseWidth talk-edge-portrayal 0.50) ; width at base (from end) of triangle
+    (.setBaseWidth talk-edge-portrayal 0.85) ; width at base (from end) of triangle
     (.setPortrayalForAll talk-net-portrayal talk-edge-portrayal)
     ;; set up display
     (doto display
