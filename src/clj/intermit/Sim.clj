@@ -49,9 +49,9 @@
                         [getSuccessStddev [] double]
                         [setSuccessStddev [double] void]
                         [domSuccessStddev [] java.lang.Object]
-                        [getMeanReligTimeSeries [] "[Lsim.util.Double2D;"]
                         [getReligDistribution [] "[D" ]
-                        [getSuccessDistribution [] "[D" ]]
+                        [getSuccessDistribution [] "[D" ]
+                        [getMeanReligTimeSeries [] "[Lsim.util.Double2D;"]]
               :state instanceState
               :init init-instance-state
               :main true))
@@ -83,7 +83,7 @@
                         communities             ; holds the communities
                         population              ; holds all individuals
                         poisson
-                        religSeries])
+                        meanReligSeries])
 
 (defn -init-instance-state
   "Initializes instance-state when an instance of class Sim is created."
@@ -97,7 +97,7 @@
                           (atom nil)   ; communities
                           (atom nil)   ; population
                           (atom nil)   ; poisson
-                          (atom []))]) ; religSeries
+                          (atom []))]) ; meanReligSeries
 
 (defn -getNumCommunities ^long [^Sim this] @(.numCommunities ^InstanceState (.instanceState this)))
 (defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities ^InstanceState (.instanceState this)) newval))
@@ -120,29 +120,15 @@
 (defn -domSuccessStddev [this] (Interval. 0.0 1.0)) ; since success ranges from 0 to 1, it doesn't make sense to have a stddev that's much larger than about 0.7.
 
 ;; Useful since the fields contain atoms:
-(defn get-communities [this] @(.communities ^InstanceState (.instanceState this)))
-(defn get-population [this] @(.population ^InstanceState (.instanceState this)))
-
-;; EXPERIMENT (FIXME)
-(let [timeseries (atom [])                 ; better living through closures.  temporarily.
-      tick (atom 0.0)]                     ; TODO TODO PUT THIS IN init structure so that it will get reinit'ed by start().  right now it carries over from one run to the next, which is bad.
-  (defn -getMeanReligTimeSeries [^Sim this]; ALSO GET THE TIMESTEP FROM THE RIGHT PLACE RATHER THAN MAKING IT MYSELF. 
-    (let [schedule (.schedule this)
-          population (get-population this)
-          size (count population)]
-      (println (.getSteps schedule))
-      (println (.getTime schedule))
-      (when (pos? size) ; prevent exception when GUI calls this during initialization
-        (swap! timeseries conj 
-               (sim.util.Double2D. @tick
-                                   (/ (reduce #(+ %1 (getRelig %2)) 0.0 population)
-                                      size)))
-        (swap! tick inc))
-      (into-array sim.util.Double2D @timeseries))))
+(defn get-communities [^Sim this] @(.communities ^InstanceState (.instanceState this)))
+(defn get-population [^Sim this] @(.population ^InstanceState (.instanceState this)))
 
 (defn -getReligDistribution [^Sim this] (double-array (map getRelig (get-population this))))
 (defn -getSuccessDistribution [^Sim this] (double-array (map getSuccess (get-population this))))
+(defn -getMeanReligTimeSeries [^Sim this] 
+  (into-array sim.util.Double2D @(.meanReligSeries ^InstanceState (.instanceState this))))
 
+;;; MORE METHODS FOR Sim BELOW.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PROTOCOLS/INTERFACES
@@ -338,24 +324,31 @@
 (defn -start
   "Function called to (re)start a new simulation run.  Initializes a new
   set of communities, each with a new set of community members."
-  [this]
+  [^Sim this]
   (.superStart this)
-  (let [schedule (.schedule this)
+  (let [^Schedule schedule (.schedule this)
         ^InstanceState instance-state (.instanceState this)
         num-communities  @(.numCommunities instance-state)
         indivs-per-community @(.meanIndivsPerCommunity instance-state)
         communities (vec (repeatedly num-communities
                                        #(make-community-of-indivs this indivs-per-community)))
-        population (vec (mapcat get-members communities))]
+        population (vec (mapcat get-members communities))
+        meanReligSeriesAtom (.meanReligSeries instance-state)]
     ;; set up core simulation structures (the stuff that runs even in headless mode)
     (reset! (.poisson instance-state) (Poisson. @(.globalInterlocMean instance-state) (.random this)))
     (reset! (.communities instance-state) communities)
     (reset! (.population instance-state) population)
+    (reset! meanReligSeriesAtom [])
     (doseq [indiv population] (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))  ; indivs' step fns run first to communicate relig
     (.scheduleRepeating schedule Schedule/EPOCH 1            ; then update success fields afterwards
                         (reify Steppable 
                           (step [this sim-state]
-                            (doseq [^Indiv indiv population] (update-success! indiv sim-state)))))))
+                            (doseq [^Indiv indiv population] (update-success! indiv sim-state))
+                            (swap! meanReligSeriesAtom
+                                   conj 
+                                   (sim.util.Double2D. (.getTime schedule)
+                                                       (/ (reduce #(+ %1 (getRelig %2)) 0.0 population)
+                                                          (count population)))))))))
 
 
 
