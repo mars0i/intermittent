@@ -62,12 +62,12 @@
 
 (def initial-num-communities 12) ; use something that factors into x and y dimensions
 (def initial-mean-indivs-per-community 12)
-(def initial-link-prob 0.2)
+(def initial-link-prob 0.25)
 (def initial-tran-stddev 0.02)
 (def initial-global-interloc-mean 0.025)
 (def initial-success-stddev 0.1)
 
-(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-noise avg-relig getRelig getSuccess get-population)
+(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-noise sum-relig calc-success getRelig getSuccess get-population)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; INSTANCESTATE FOR SIM CLASS
@@ -128,14 +128,14 @@
 (defn -getSuccessDistribution [^Sim this] (double-array (map getSuccess (get-population this))))
 
 (defn -getMeanReligDistribution [^Sim this]
-  (double-array (map #(second %) @(.meanReligSeries ^InstanceState (.instanceState this))))) ; vector version: strip ticks, extract data
-  ;(double-array (map #(.y %) @(.meanReligSeries ^InstanceState (.instanceState this)))))    ; Double2D version: extract data in y element
+  (double-array (map #(.y %) @(.meanReligSeries ^InstanceState (.instanceState this)))))    ; Double2D version: extract data in y element
+  ;(double-array (map #(second %) @(.meanReligSeries ^InstanceState (.instanceState this))))) ; vector version: strip ticks, extract data
 
 (defn -getMeanReligTimeSeries [^Sim this] 
-  (into-array sim.util.Double2D                    ; vector of vectors version: convert to Java array of Double2D
-              (map (fn [[x y]] (Double2D. x y))
-                   @(.meanReligSeries ^InstanceState (.instanceState this))))) 
-  ;(into-array sim.util.Double2D @(.meanReligSeries ^InstanceState (.instanceState this)))) ; Double2D version: just convert Clojure vector to Java array
+  (into-array sim.util.Double2D @(.meanReligSeries ^InstanceState (.instanceState this)))) ; Double2D version: just convert Clojure vector to Java array
+  ;(into-array sim.util.Double2D                    ; vector of vectors version: convert to Java array of Double2D
+  ;            (map (fn [[x y]] (Double2D. x y))
+  ;                 @(.meanReligSeries ^InstanceState (.instanceState this))))) 
 
 ;;; MORE METHODS FOR Sim BELOW.
 
@@ -185,7 +185,7 @@
             ^MersenneTwisterFast rng (.random sim)
             ^InstanceState istate (.instanceState sim)
             ^double stddev @(.successStddev istate)]
-        (set! success (add-noise rng stddev (avg-relig relig neighbors)))))
+        (set! success (add-noise rng stddev (calc-success relig neighbors)))))
     (copy-relig! [this sim-state population]
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
             ^MersenneTwisterFast rng (.random sim)
@@ -213,14 +213,21 @@
 
 ;;; Runtime functions:
 
+(defn sum-relig
+  "Sum the relig values of indivs along with initial value init-value.
+  Suitable for use with reduce."
+  [^double init-value indivs]
+  (let [add-relig (fn [^double acc ^Indiv indiv] (+ acc ^double (getRelig indiv)))]
+    (reduce add-relig init-value indivs)))
+
 ;; TODO note this means that e.g. if indiv is isolated, then when it happens to get high relig, it will also have high success.  Is that realistic?
-(defn avg-relig
+(defn calc-success
   "Returns the average of relig values of a collection of indivs and
-  the given relig value."
-  ^double [^double relig indivs]
-  (let [size (inc (count indivs))
-        add-success (fn [^double acc ^Indiv indiv] (+ acc ^double (getRelig indiv)))]
-      (/ (reduce add-success relig indivs) size)))
+  one more indiv, who has relig value init-value.  i.e. the sum of all
+  these values is divided by (count indivs) + 1."
+  ^double [^double init-value indivs]
+  (/ (sum-relig init-value indivs) 
+     (inc (count indivs))))
 
 (defn choose-others-from-pop
   "Randomly sample a Poisson-distributed number of indivs from population,
@@ -340,7 +347,7 @@
         num-communities  @(.numCommunities instance-state)
         indivs-per-community @(.meanIndivsPerCommunity instance-state)
         communities (vec (repeatedly num-communities
-                                       #(make-community-of-indivs this indivs-per-community)))
+                                     #(make-community-of-indivs this indivs-per-community)))
         population (vec (mapcat get-members communities))
         meanReligSeriesAtom (.meanReligSeries instance-state)]
     ;; set up core simulation structures (the stuff that runs even in headless mode)
@@ -355,8 +362,9 @@
                             (doseq [^Indiv indiv population] (update-success! indiv sim-state))
                             (swap! meanReligSeriesAtom
                                    conj 
-                                   [(double (.getSteps schedule)) ; coercion will happen automatically; I made it explicit. getTime incorrect if funny scheduling.
-                                    (/ (reduce #(+ %1 (getRelig %2)) 0.0 population)
-                                       (count population)) ] ))))))
-                                   ; for Double2D version of mean relig series, replace "[" with "(sim.util.Double2D." and "]" with ")"
-
+                                   (Double2D.
+                                     (double (.getSteps schedule)) ; coercion will happen automatically; I made it explicit. getTime incorrect if funny scheduling.
+                                     (/ (sum-relig 0.0 population)
+                                        (count population)))))))))
+;; for Double2D version of mean relig series, use "(sim.util.Double2D. ...)".
+;; for vector version of mean relig series, use "[...]".
