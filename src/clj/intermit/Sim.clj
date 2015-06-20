@@ -355,7 +355,7 @@
                             (doseq [^Indiv indiv population] (update-success! indiv sim-state))
                             (swap! meanReligSeriesAtom
                                    conj 
-                                   [(double (.getSteps schedule)) ; coercion will happen automatically, apparently, but I made it explicit
+                                   [(double (.getSteps schedule)) ; coercion will happen automatically; I made it explicit. getTime incorrect if funny scheduling.
                                     (/ (reduce #(+ %1 (getRelig %2)) 0.0 population)
                                        (count population)) ] ))))))
                                    ; for Double2D version of mean relig series, replace "[" with "(sim.util.Double2D." and "]" with ")"
