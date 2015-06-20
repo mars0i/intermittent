@@ -128,10 +128,14 @@
 (defn -getSuccessDistribution [^Sim this] (double-array (map getSuccess (get-population this))))
 
 (defn -getMeanReligDistribution [^Sim this]
-  (double-array (map #(.y %) @(.meanReligSeries ^InstanceState (.instanceState this))))) ; maybe there's a faster way to do this
+  (double-array (map #(second %) @(.meanReligSeries ^InstanceState (.instanceState this))))) ; vector version: strip ticks, extract data
+  ;(double-array (map #(.y %) @(.meanReligSeries ^InstanceState (.instanceState this)))))    ; Double2D version: extract data in y element
 
 (defn -getMeanReligTimeSeries [^Sim this] 
-  (into-array sim.util.Double2D @(.meanReligSeries ^InstanceState (.instanceState this))))
+  (into-array sim.util.Double2D                    ; vector of vectors version: convert to Java array of Double2D
+              (map (fn [[x y]] (Double2D. x y))
+                   @(.meanReligSeries ^InstanceState (.instanceState this))))) 
+  ;(into-array sim.util.Double2D @(.meanReligSeries ^InstanceState (.instanceState this)))) ; Double2D version: just convert Clojure vector to Java array
 
 ;;; MORE METHODS FOR Sim BELOW.
 
@@ -351,7 +355,8 @@
                             (doseq [^Indiv indiv population] (update-success! indiv sim-state))
                             (swap! meanReligSeriesAtom
                                    conj 
-                                   (sim.util.Double2D. (.getTime schedule)
-                                                       (/ (reduce #(+ %1 (getRelig %2)) 0.0 population)
-                                                          (count population)))))))))
+                                   [(double (.getSteps schedule)) ; coercion will happen automatically, apparently, but I made it explicit
+                                    (/ (reduce #(+ %1 (getRelig %2)) 0.0 population)
+                                       (count population)) ] ))))))
+                                   ; for Double2D version of mean relig series, replace "[" with "(sim.util.Double2D." and "]" with ")"
 
