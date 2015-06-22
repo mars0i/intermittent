@@ -9,8 +9,7 @@
   (:require [clojure.math.numeric-tower :as m]
             [intermit.utils :as u]
             [intermit.Sim :as s])
-  (:import [sim.field.continuous Continuous2D]
-           [sim.util Double2D]))
+  (:import [sim.util Double2D]))
 
 (def community-shrink 0.75)
 (def community-offset 0.0)
