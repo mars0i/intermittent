@@ -14,6 +14,7 @@
 (def community-shrink 0.75)
 (def community-offset 0.0)
 (def community-offset-factor 1.25)
+(def indiv-position-jitter 0.8) ; stddev of noise added to node positions to make it easier to distinguish links to vs those that just happen to cross a node
 
 (declare near-factors middle-factors middle-factors-helper set-community-locs! set-indiv-locs! indiv-locs lattice-locs add-jitter-to-locs)
 
