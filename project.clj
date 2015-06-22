@@ -3,14 +3,14 @@
   :url "http://example.com/FIXME"
   :license {:name "Gnu General Public License version 3.0"
             :url "http://www.gnu.org/copyleft/gpl.html"}
-  :resource-paths ["resources/mason.18.jar"
-                   "resources/bsh-2.0b4.jar"
-                   "resources/itext-1.2.jar"
-                   "resources/jcommon-1.0.21.jar"
-                   "resources/jfreechart-1.0.17.jar"
-                   "resources/jmf.jar"
-                   "resources/mason.18.jar"
-                   "resources/portfolio.jar"]
+  :resource-paths ["mason/jar/mason.19.jar"
+                   "mason/libraries/bsh-2.0b4.jar"
+                   "mason/libraries/itext-1.2.jar"
+                   "mason/libraries/jcommon-1.0.21.jar"
+                   "mason/libraries/jfreechart-1.0.17.jar"
+                   "mason/libraries/jmf.jar"
+                   "mason/libraries/portfolio.jar"]
+  ;:warn-on-reflection true
   ;:java-source-paths ["src/java"]
   :dependencies [[org.clojure/clojure "1.7.0-RC2"]
                  [org.clojure/math.numeric-tower "0.0.4"]]
