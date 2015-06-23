@@ -43,7 +43,7 @@
                         [getTranStddev [] double]
                         [setTranStddev [double] void]
                         [domTranStddev [] java.lang.Object]
-                        [getGlobalInterlocMean [] double]
+                        [getGlobalInterlocMean [] double]     ; i.e. mean # of interlocutors from global population
                         [setGlobalInterlocMean [double] void]
                         ;[domGlobalInterlocMean [] java.lang.Object]
                         [getSuccessStddev [] double]
@@ -66,7 +66,7 @@
 (def initial-mean-indivs-per-community 15)
 (def initial-link-prob 0.20)
 (def initial-tran-stddev 0.02)
-(def initial-global-interloc-mean 0.025)
+(def initial-global-interloc-mean 0.025)     ; i.e. Poisson-mean interlocutors from global population
 (def initial-success-stddev 2.0)
 (def initial-link-style "binomial")
 
@@ -82,7 +82,7 @@
                         meanIndivsPerCommunity  ; mean or exact number of indivs in each
                         linkProb
                         tranStddev
-                        globalInterlocMean
+                        globalInterlocMean ; mean number of interlocutors from global pop
                         successStddev
                         communities             ; holds the communities
                         population              ; holds all individuals
