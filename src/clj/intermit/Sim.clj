@@ -52,7 +52,9 @@
                         [getReligDistribution [] "[D" ]
                         [getSuccessDistribution [] "[D" ]
                         [getMeanReligDistribution [] "[D" ]
-                        [getMeanReligTimeSeries [] "[Lsim.util.Double2D;"]]
+                        [getMeanReligTimeSeries [] "[Lsim.util.Double2D;"]
+                        [getLinkStyle [] java.lang.String]
+                        [setLinkStyle [java.lang.String] void]]
               :state instanceState
               :init init-instance-state
               :main true))
@@ -66,8 +68,9 @@
 (def initial-tran-stddev 0.02)
 (def initial-global-interloc-mean 0.025)
 (def initial-success-stddev 2.0)
+(def initial-link-style "binomial")
 
-(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-noise sum-relig calc-success getRelig getSuccess get-population)
+(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-noise sum-relig calc-success getRelig getSuccess get-population link-styles)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; INSTANCESTATE FOR SIM CLASS
@@ -84,7 +87,8 @@
                         communities             ; holds the communities
                         population              ; holds all individuals
                         poisson
-                        meanReligSeries])
+                        meanReligSeries
+                        linkStyle])
 
 (defn -init-instance-state
   "Initializes instance-state when an instance of class Sim is created."
@@ -98,7 +102,8 @@
                           (atom nil)   ; communities
                           (atom nil)   ; population
                           (atom nil)   ; poisson
-                          (atom []))]) ; meanReligSeries
+                          (atom [])
+                          (atom initial-link-style))]) ; meanReligSeries
 
 (defn -getNumCommunities ^long [^Sim this] @(.numCommunities ^InstanceState (.instanceState this)))
 (defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities ^InstanceState (.instanceState this)) newval))
@@ -119,6 +124,9 @@
 (defn -getSuccessStddev ^double [^Sim this] @(.successStddev ^InstanceState (.instanceState this)))
 (defn -setSuccessStddev [^Sim this ^double newval] (reset! (.successStddev ^InstanceState (.instanceState this)) newval))
 (defn -domSuccessStddev [this] (Interval. 0.0 4.0)) ; since success ranges from 0 to 1, it doesn't make sense to have a stddev that's much larger than about 0.7.
+(defn -getLinkStyle ^java.lang.String [^Sim this] @(.linkStyle ^InstanceState (.instanceState this)))
+(defn -setLinkStyle [^Sim this ^java.lang.String newval] (reset! (.linkStyle ^InstanceState (.instanceState this)) newval))
+(defn -domLinkStyle [^Sim this] (into-array (keys link-styles)))
 
 ;; Useful since the fields contain atoms:
 (defn get-communities [^Sim this] @(.communities ^InstanceState (.instanceState this)))
@@ -291,6 +299,7 @@
     []   ; neighbors
     nil))  ; prevspeaker
 
+
 (defn binomial-link-indivs!
   "For each pair of indivs, with probability prob, make them each others' neighbors.
   Set prob to 1 to link all indivs to each other.  (This is a 'binomial' [edge
@@ -303,6 +312,27 @@
                 indiv-j (nth indivs j)]]
       (add-neighbor! indiv-i indiv-j)
       (add-neighbor! indiv-j indiv-i)))
+
+(defn sequential-link-indivs!
+  "Links each indiv to the next indiv in the sequence.  Each
+  indiv except the first and last will have two links."
+  ([indivs]
+   (let [size (count indivs)
+         dec-size (dec size)]
+     (doseq [i (range size)
+             :when (< i dec-size)
+             :let [indiv-i (nth indivs i)     ; fires only if when does
+                   indiv-j (nth indivs (inc i))]]
+       (add-neighbor! indiv-i indiv-j)
+       (add-neighbor! indiv-j indiv-i))))
+  ([rng prob indivs] (sequential-link-indivs! indivs)))
+
+(def link-styles {"binomial" binomial-link-indivs!
+                  "sequential" sequential-link-indivs!})
+
+(defn link-indivs!
+  [keystr rng prob indivs]
+  ((link-styles keystr) rng prob indivs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
@@ -322,9 +352,9 @@
   "Make a community with size number of indivs in it."
   [sim size]
   (let [indivs  (vec (repeatedly size #(make-indiv sim))) ; it's short; don't wait for late-realization bugs.
-        rng (.random sim)]
-    (binomial-link-indivs! rng @(.linkProb (.instanceState sim)) indivs) 
-    ;(add-until-min-links! rng 1 indivs) 
+        rng (.random sim)
+        link-style @(.linkStyle (.instanceState sim))]
+    (link-indivs! link-style rng @(.linkProb (.instanceState sim)) indivs)
     (Community. (str (gensym "c")) indivs)))
 
 
