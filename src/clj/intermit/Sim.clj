@@ -29,6 +29,7 @@
            [sim.util.distribution Poisson]
            [ec.util MersenneTwisterFast]
            [java.lang String]
+           [java.util Collection]
            [intermit Sim]) ; import rest of classes after each is defined
   (:gen-class :name intermit.Sim
               :extends sim.engine.SimState                         ; includes signature for the start() method
@@ -102,8 +103,8 @@
                           (atom nil)   ; communities
                           (atom nil)   ; population
                           (atom nil)   ; poisson
-                          (atom [])
-                          (atom initial-link-style))]) ; meanReligSeries
+                          (atom [])    ; meanReligSeries
+                          (atom initial-link-style))]) 
 
 (defn -getNumCommunities ^long [^Sim this] @(.numCommunities ^InstanceState (.instanceState this)))
 (defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities ^InstanceState (.instanceState this)) newval))
@@ -137,7 +138,7 @@
 (defn -getSuccessDistribution [^Sim this] (double-array (map getSuccess (get-population this))))
 
 (defn -getMeanReligDistribution [^Sim this]
-  (double-array (map #(.y %) @(.meanReligSeries ^InstanceState (.instanceState this)))))    ; Double2D version: extract data in y element
+  (double-array (map #(.y ^Double2D %) @(.meanReligSeries ^InstanceState (.instanceState this)))))    ; Double2D version: extract data in y element
   ;(double-array (map #(second %) @(.meanReligSeries ^InstanceState (.instanceState this))))) ; vector version: strip ticks, extract data
 
 (defn -getMeanReligTimeSeries [^Sim this] 
@@ -213,8 +214,15 @@
     ;; Note that by maintaining only a single version of vars, and allowing each indiv to be stepped in random order, we allow per-tick path dependencies.
     (step [this sim-state] 
       (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
-            ^intermit.Sim.InstanceState istate (.instanceState sim)]
-        (copy-relig! this sim @(.population istate))))
+            ^intermit.Sim.InstanceState istate (.instanceState sim)
+            ^MersenneTwisterFast rng (.random sim)
+            ; TODO:
+            pop-bag (sim.util.Bag. ^Collection @(.population istate))] ; THIS is where most of the order-of-magnitude hit comes
+        (.shuffle pop-bag rng)                                         ; CONSIDER using a Clojure shuffle routine, or use Bags more of the time to avoid conversion
+        (copy-relig! this sim (vec pop-bag))))
+       ;; This next version, without shuffling, makes entire program an order of magnitude faster, but is clearly incorrect:
+       ;; With large Poisson mean, most of the speakers are in the last community.  Horrible.
+       ;(copy-relig! this sim @(.population istate)))) 
   Oriented2D ; display pointer in GUI
     (orientation2D [this] (+ (/ Math/PI 2) (* Math/PI success))) ; pointer goes from down (=0) to up (=1)
   Object
