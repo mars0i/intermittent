@@ -3,17 +3,18 @@
   :url "http://example.com/FIXME"
   :license {:name "Gnu General Public License version 3.0"
             :url "http://www.gnu.org/copyleft/gpl.html"}
-  :resource-paths ["mason/jar/mason.19.jar"
-                   "mason/libraries/bsh-2.0b4.jar"
-                   "mason/libraries/itext-1.2.jar"
-                   "mason/libraries/jcommon-1.0.21.jar"
-                   "mason/libraries/jfreechart-1.0.17.jar"
-                   "mason/libraries/jmf.jar"
-                   "mason/libraries/portfolio.jar"]
+  ; re "~" http://stackoverflow.com/questions/30985714/how-to-reference-environmental-variable-or-home-dir-in-project-clj:
+  :resource-paths [~(str (System/getenv "HOME") "/dist/mason/" "jar/mason.19.jar")
+                   ~(str (System/getenv "HOME") "/dist/mason/" "libraries/itext-1.2.jar")
+                   ~(str (System/getenv "HOME") "/dist/mason/" "libraries/jmf.jar")
+                   ~(str (System/getenv "HOME") "/dist/mason/" "libraries/portfolio.jar")]
   ;:warn-on-reflection true
   ;:java-source-paths ["src/java"]
   :dependencies [[org.clojure/clojure "1.7.0-RC2"]
-                 [org.clojure/math.numeric-tower "0.0.4"]]
+                 [org.clojure/math.numeric-tower "0.0.4"]
+                 [org.jfree/jcommon "1.0.21"]    ;"mason/libraries/jcommon-1.0.21.jar"
+                 [org.jfree/jfreechart "1.0.17"] ;"mason/libraries/jfreechart-1.0.17.jar"
+                 [org.beanshell/bsh "2.0b4"]]    ;"mason/libraries/bsh-2.0b4.jar"
   :source-paths ["src/clj"]
   :jvm-opts ["-Xmx2g"]
   :main intermit.Sim
