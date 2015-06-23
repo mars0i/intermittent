@@ -243,14 +243,16 @@
   excluding me.  (The mean for the Poisson distribution is stored in the
   poisson object.)"
   [^MersenneTwisterFast rng ^Poisson poisson me population]
-  (let [size (count population)
+  (let [size-wout-me (dec (count population)) ; we're sampling indivs *other* than me; there are count - 1 of them.
         rand-num (.nextInt poisson)
-        num-to-choose (if (< rand-num size) rand-num size)] ; When Poisson mean is large, result may be larger than number of indivs.
-    (sample-wout-repl-or-me rng num-to-choose me population)))
+        num-to-choose (if (< rand-num size-wout-me) rand-num size-wout-me)] ; When Poisson mean is large, result may be larger than number of indivs.
+    (let [res (sample-wout-repl-or-me rng num-to-choose me population)]
+      res)))
 
 ;; It's much faster to remove the originating Indiv from samples here,
 ;; rather than removing it from the collection to be sampled, at least
-;; for reasonably large populations.
+;; for reasonably large populations.  Makes this function more complicated, 
+;; though.  Hopefully the bugs are out now.
 (defn sample-wout-repl-or-me
   "Special sample without replacement function:
   Returns num-samples samples from coll without replacement, excluding 
@@ -259,14 +261,17 @@
   coll has fast index access (e.g. it's a vector) and when the elements hash
   by identity (e.g. when defined by deftype rather than defrecord)."
   [^MersenneTwisterFast rng ^long num-samples me coll]
-  (let [size (count coll)]
-    (loop [sample-set #{}]
-      (if (== (count sample-set) num-samples)
-        sample-set
-        (let [sample (nth coll (.nextInt rng size))]
-          (if (identical? me sample) ; if it's the one we don't want,
-            (recur sample-set)       ; lose it
-            (recur (conj sample-set sample))))))))
+  (let [size (count coll)
+        size-wout-me (dec size)] ; how many elements, excluding me?
+    (cond (>= num-samples size) (throw (Exception. "num-samples is larger than coll size w/out 'me'"))
+          (== num-samples size-wout-me) (remove #(identical? me %) coll)
+          :else (loop [sample-set #{}]   ; num-samples < size - 1
+                  (if (== (count sample-set) num-samples)
+                    sample-set
+                    (let [sample (nth coll (.nextInt rng size))]
+                      (if (identical? me sample) ; if it's the one we don't want,
+                        (recur sample-set)       ; lose it
+                        (recur (conj sample-set sample)))))))))
 
 ;; Can I avoid repeated accesses to the same field, caching them?  Does it matter?
 (defn choose-most-successful
@@ -278,7 +283,7 @@
             ([^Indiv i1 ^Indiv i2]
              (let [^double success1 (getSuccess i1)
                    ^double success2 (getSuccess i2)]
-               (cond (== success1 success2) (if (< ^double (.nextDouble rng) 0.5) ; a rare case, but we don't ties' results to be path dependent.
+               (cond (== success1 success2) (if (< ^double (.nextDouble rng) 0.5) ; a rare case, but we don't want ties' results to be path dependent.
                                               i1
                                               i2)
                      (> success1 success2) i1
