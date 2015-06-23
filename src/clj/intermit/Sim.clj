@@ -45,7 +45,7 @@
                         [domTranStddev [] java.lang.Object]
                         [getGlobalInterlocMean [] double]
                         [setGlobalInterlocMean [double] void]
-                        [domGlobalInterlocMean [] java.lang.Object]
+                        ;[domGlobalInterlocMean [] java.lang.Object]
                         [getSuccessStddev [] double]
                         [setSuccessStddev [double] void]
                         [domSuccessStddev [] java.lang.Object]
@@ -118,9 +118,10 @@
 (defn -getGlobalInterlocMean ^double [^Sim this] @(.globalInterlocMean ^InstanceState (.instanceState this)))
 (defn -setGlobalInterlocMean [^Sim this ^double newval] 
   (let [^InstanceState istate (.instanceState this)]
-    (reset! (.globalInterlocMean istate) newval) ; store it so that UI can display its current value
-    (.setMean ^Poisson @(.poisson istate) newval)))  ; allows changing value during the middle of a run.
-(defn -domGlobalInterlocMean [this] (Interval. 0.0 20.0)) ; a mean for a Poisson distribution.  Should go high enough to guarantee that everyone talks to everyone, but large numbers choke the app.
+    (reset! (.globalInterlocMean istate) newval)    ; store it so that UI can display its current value
+    (when-let [^Poisson poisson @(.poisson istate)] ; avoid npe: poisson isn't created until start is run (at which point it will be init'ed with value of globalInterlocMean)
+      (.setMean poisson newval))))                  ; allows changing value during the middle of a run.
+;(defn -domGlobalInterlocMean [this] (Interval. 0.0 20.0)) ; a mean for a Poisson distribution.  Should go high enough to guarantee that everyone talks to everyone, but large numbers choke the app.
 (defn -getSuccessStddev ^double [^Sim this] @(.successStddev ^InstanceState (.instanceState this)))
 (defn -setSuccessStddev [^Sim this ^double newval] (reset! (.successStddev ^InstanceState (.instanceState this)) newval))
 (defn -domSuccessStddev [this] (Interval. 0.0 4.0)) ; since success ranges from 0 to 1, it doesn't make sense to have a stddev that's much larger than about 0.7.
@@ -242,7 +243,9 @@
   excluding me.  (The mean for the Poisson distribution is stored in the
   poisson object.)"
   [^MersenneTwisterFast rng ^Poisson poisson me population]
-  (let [num-to-choose (.nextInt poisson)]
+  (let [size (count population)
+        rand-num (.nextInt poisson)
+        num-to-choose (if (< rand-num size) rand-num size)] ; When Poisson mean is large, result may be larger than number of indivs.
     (sample-wout-repl-or-me rng num-to-choose me population)))
 
 ;; It's much faster to remove the originating Indiv from samples here,
