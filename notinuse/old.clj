@@ -56,3 +56,15 @@
 ;; It means (a) all members of comm have same success, so there's
 ;; no point in surveying neighbors; they should be chosen randomly
 ;; if they don't beat out the global candidate(s).
+
+
+
+(defn -getMeanReligDistribution [^Sim this]
+  (double-array (map #(.y ^Double2D %) @(.meanReligSeries ^InstanceState (.instanceState this)))))    ; Double2D version: extract data in y element
+  ;(double-array (map #(second %) @(.meanReligSeries ^InstanceState (.instanceState this))))) ; vector version: strip ticks, extract data
+
+(defn -getMeanReligTimeSeries [^Sim this] 
+  (into-array sim.util.Double2D @(.meanReligSeries ^InstanceState (.instanceState this)))) ; Double2D version: just convert Clojure vector to Java array
+  ;(into-array sim.util.Double2D                    ; vector of vectors version: convert to Java array of Double2D
+  ;            (map (fn [[x y]] (Double2D. x y))
+  ;                 @(.meanReligSeries ^InstanceState (.instanceState this))))) 
