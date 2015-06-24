@@ -51,9 +51,11 @@
                         [setSuccessStddev [double] void]
                         [domSuccessStddev [] java.lang.Object]
                         [getReligDistribution [] "[D" ]
-                        [getSuccessDistribution [] "[D" ]
                         [getMeanReligDistribution [] "[D" ]
                         [getMeanReligTimeSeries [] "[Lsim.util.Double2D;"]
+                        [getSuccessDistribution [] "[D" ]
+                        [getMeanSuccessDistribution [] "[D" ]
+                        [getMeanSuccessTimeSeries [] "[Lsim.util.Double2D;"]
                         [getLinkStyle [] java.lang.String]
                         [setLinkStyle [java.lang.String] void]]
               :state instanceState
@@ -63,6 +65,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; DEFAULTS AND GENERAL UTILITY CODE
 
+(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-noise sum-relig calc-success getRelig
+         getSuccess get-population link-styles binomial-link-indivs! sequential-link-indivs! both-link-indivs!)
+
 (def initial-num-communities 12) ; use something that factors into x and y dimensions
 (def initial-mean-indivs-per-community 15)
 (def initial-link-prob 0.20)
@@ -71,7 +76,7 @@
 (def initial-success-stddev 2.0)
 (def initial-link-style "binomial")
 
-(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-noise sum-relig calc-success getRelig getSuccess get-population link-styles)
+;; Can't put link-styles here because eval'ing the fn defs produces nothing at this stage
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; INSTANCESTATE FOR SIM CLASS
@@ -89,6 +94,7 @@
                         population              ; holds all individuals
                         poisson
                         meanReligSeries
+                        meanSuccessSeries
                         linkStyle])
 
 (defn -init-instance-state
@@ -104,6 +110,7 @@
                           (atom nil)   ; population
                           (atom nil)   ; poisson
                           (atom [])    ; meanReligSeries
+                          (atom [])    ; meanSuccessSeries
                           (atom initial-link-style))]) 
 
 (defn -getNumCommunities ^long [^Sim this] @(.numCommunities ^InstanceState (.instanceState this)))
@@ -134,18 +141,41 @@
 (defn get-communities [^Sim this] @(.communities ^InstanceState (.instanceState this)))
 (defn get-population [^Sim this] @(.population ^InstanceState (.instanceState this)))
 
-(defn -getReligDistribution [^Sim this] (double-array (map getRelig (get-population this))))
-(defn -getSuccessDistribution [^Sim this] (double-array (map getSuccess (get-population this))))
+(defn -getReligDistribution
+  "Returns array of doubles of relig values in population at current timestep."
+  [^Sim this] 
+  (double-array (map getRelig (get-population this))))
 
-(defn -getMeanReligDistribution [^Sim this]
-  (double-array (map #(.y ^Double2D %) @(.meanReligSeries ^InstanceState (.instanceState this)))))    ; Double2D version: extract data in y element
-  ;(double-array (map #(second %) @(.meanReligSeries ^InstanceState (.instanceState this))))) ; vector version: strip ticks, extract data
-
-(defn -getMeanReligTimeSeries [^Sim this] 
+(defn -getMeanReligTimeSeries
+  "Returns array of sim.util.Double2D's in which the first element is a
+  timestep and the second is the population's mean relig at that timestep."
+  [^Sim this] 
   (into-array sim.util.Double2D @(.meanReligSeries ^InstanceState (.instanceState this)))) ; Double2D version: just convert Clojure vector to Java array
-  ;(into-array sim.util.Double2D                    ; vector of vectors version: convert to Java array of Double2D
-  ;            (map (fn [[x y]] (Double2D. x y))
-  ;                 @(.meanReligSeries ^InstanceState (.instanceState this))))) 
+
+(defn -getMeanReligDistribution
+  "Returns array of doubles containing the population's mean relig values at
+  all timesteps until and including the current timestep.  (Useful for generating
+  a histogram over all timesteps so far.)"
+  [^Sim this]
+  (double-array (map #(.y ^Double2D %) @(.meanReligSeries ^InstanceState (.instanceState this)))))    ; Double2D version: extract data in y element
+
+(defn -getSuccessDistribution 
+ "Returns array of doubles of success values in population at current timestep."
+  [^Sim this]
+  (double-array (map getSuccess (get-population this))))
+
+(defn -getMeanSuccessTimeSeries
+  "Returns array of sim.util.Double2D's in which the first element is a
+  timestep and the second is the population's mean success at that timestep."
+  [^Sim this] 
+  (into-array sim.util.Double2D @(.meanSuccessSeries ^InstanceState (.instanceState this)))) ; Double2D version: just convert Clojure vector to Java array
+
+(defn -getMeanSuccessDistribution
+  "Returns array of doubles containing the population's mean success values at
+  all timesteps until and including the current timestep.  (Useful for generating
+  a histogram over all timesteps so far.)"
+  [^Sim this]
+  (double-array (map #(.y ^Double2D %) @(.meanSuccessSeries ^InstanceState (.instanceState this)))))    ; Double2D version: extract data in y element
 
 ;;; MORE METHODS FOR Sim BELOW.
 
@@ -336,12 +366,19 @@
        (add-neighbor! indiv-j indiv-i))))
   ([rng prob indivs] (sequential-link-indivs! indivs)))
 
+(defn both-link-indivs!
+  "Runs sequential-link-indivs! and then runs binomial-link-indivs!"
+  [rng prob indivs]
+  (sequential-link-indivs! indivs)
+  (binomial-link-indivs! rng prob indivs))
+
 (def link-styles {"binomial" binomial-link-indivs!
-                  "sequential" sequential-link-indivs!})
+                  "sequential" sequential-link-indivs!
+                  "both" both-link-indivs!})
 
 (defn link-indivs!
   [keystr rng prob indivs]
-  ((link-styles keystr) rng prob indivs))
+  ((get link-styles keystr initial-link-style) rng prob indivs)) ; if user enters bad string, uses initial-link-style
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
@@ -405,5 +442,3 @@
                                      (double (.getSteps schedule)) ; coercion will happen automatically; I made it explicit. getTime incorrect if funny scheduling.
                                      (/ (sum-relig 0.0 population)
                                         (count population)))))))))
-;; for Double2D version of mean relig series, use "(sim.util.Double2D. ...)".
-;; for vector version of mean relig series, use "[...]".
