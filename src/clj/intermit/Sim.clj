@@ -216,13 +216,6 @@
       (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
             ^intermit.Sim.InstanceState istate (.instanceState sim)
             population @(.population istate)]
-            ;^MersenneTwisterFast rng (.random sim)
-            ;pop-bag (sim.util.Bag. ^Collection population)] ; THIS is where most of the order-of-magnitude hit comes
-        ;(.shuffle pop-bag rng)                                         ; CONSIDER using a Clojure shuffle routine, or use Bags more of the time to avoid conversion
-        ;(copy-relig! this sim (vec pop-bag))))
-        ;(copy-relig! this sim (shuffle population)))) ; JUST AS slow as the Bag version. Clojure shuffle throws coll into an ArrayList and then calls java.util.Collections/shuffle on it.
-       ;; This next version, without shuffling, makes entire program an order of magnitude faster, but is clearly incorrect:
-       ;; With large Poisson mean, most of the speakers are in the last community.  Horrible.
        (copy-relig! this sim @(.population istate)))) 
   Oriented2D ; display pointer in GUI
     (orientation2D [this] (+ (/ Math/PI 2) (* Math/PI success))) ; pointer goes from down (=0) to up (=1)
@@ -272,15 +265,14 @@
   [^MersenneTwisterFast rng ^long num-samples me coll]
   (let [size (count coll)
         size-wout-me (dec size)] ; how many elements, excluding me?
-    (cond (>= num-samples size) (throw (Exception. "num-samples is larger than coll size w/out 'me'"))
-          (== num-samples size-wout-me) (remove #(identical? me %) coll)
-          :else (loop [sample-set #{}]   ; num-samples < size - 1
-                  (if (== (count sample-set) num-samples)
-                    sample-set
-                    (let [sample (nth coll (.nextInt rng size))]
-                      (if (identical? me sample) ; if it's the one we don't want,
-                        (recur sample-set)       ; lose it
-                        (recur (conj sample-set sample)))))))))
+    (when (>= num-samples size) (throw (Exception. "num-samples is larger than coll size w/out 'me'")))
+    (loop [sample-set #{}]   ; don't return coll as is when num-samples = size; need to allow it to be shuffled anyway (maybe not so efficient ...)
+      (if (== (count sample-set) num-samples)
+        sample-set
+        (let [sample (nth coll (.nextInt rng size))]
+          (if (identical? me sample) ; if it's the one we don't want,
+            (recur sample-set)       ; lose it
+            (recur (conj sample-set sample))))))))
 
 ;; Can I avoid repeated accesses to the same field, caching them?  Does it matter?
 (defn choose-most-successful
