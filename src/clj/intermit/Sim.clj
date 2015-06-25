@@ -220,12 +220,6 @@
     (getNeighbors [this] neighbors)
     (get-prev-speaker [this] prevspeaker)
     (add-neighbor! [this new-neighbor] (set! neighbors (conj neighbors new-neighbor)))
-    (update-success! [this sim-state]
-      (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
-            ^MersenneTwisterFast rng (.random sim)
-            ^InstanceState istate (.instanceState sim)
-            ^double stddev @(.successStddev istate)]
-        (set! success (add-noise rng stddev (calc-success relig neighbors)))))
     (copy-relig! [this sim-state population]
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
             ^MersenneTwisterFast rng (.random sim)
@@ -240,6 +234,12 @@
           (when (> (getSuccess best-model) success)     ; is most successful other, better than me?
             (set! relig (add-noise rng stddev (getRelig best-model)))
             (set! prevspeaker best-model)))))
+    (update-success! [this sim-state]
+      (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
+            ^MersenneTwisterFast rng (.random sim)
+            ^InstanceState istate (.instanceState sim)
+            ^double stddev @(.successStddev istate)]
+        (set! success (add-noise rng stddev (calc-success relig neighbors)))))
   Steppable
     ;; Note that by maintaining only a single version of vars, and allowing each indiv to be stepped in random order, we allow per-tick path dependencies.
     (step [this sim-state] 
@@ -278,8 +278,7 @@
   (let [size-wout-me (dec (count population)) ; we're sampling indivs *other* than me; there are count - 1 of them.
         rand-num (.nextInt poisson)
         num-to-choose (if (< rand-num size-wout-me) rand-num size-wout-me)] ; When Poisson mean is large, result may be larger than number of indivs.
-    (let [res (sample-wout-repl-or-me rng num-to-choose me population)]
-      res)))
+    (sample-wout-repl-or-me rng num-to-choose me population)))
 
 ;; It's much faster to remove the originating Indiv from samples here,
 ;; rather than removing it from the collection to be sampled, at least
@@ -305,6 +304,14 @@
             (recur (conj sample-set sample))))))))
 
 ;; Can I avoid repeated accesses to the same field, caching them?  Does it matter?
+;; 
+;; TODO: BUG: When there are many with the max success, this is biased toward the end of the sequence.
+;; Why? This is OK when the seq is in random order, but it shouldn't happen.
+;; Ah, this is why: Because the random choice of the winner does pairwise comparisons.
+;; So it randomly chooses one from the first pair, but then the winner of that randomly competes
+;; against the next, and so on.  Therefore prob that the first indiv at max will win is 0.5^n,
+;; where n is the number of indivs with the max value.  (It's also bad that I'm running params that
+;; tend to force success values to 0.0 or 1.0.)
 (defn choose-most-successful
   "Given a collection of Indiv's, returns the one with the greatest success, or
   nil if the collection is empty."
