@@ -73,6 +73,7 @@
 (def initial-link-prob 0.20)
 (def initial-tran-stddev 0.02)
 (def initial-global-interloc-mean 0.025)     ; i.e. Poisson-mean interlocutors from global population
+;(def initial-global-interloc-mean 400)     ; i.e. Poisson-mean interlocutors from global population
 (def initial-success-stddev 2.0)
 (def initial-link-style "binomial")
 
@@ -279,7 +280,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; ALTERNATIVE SHUFFLING AND SAMPLING FUNCTIONS (not all in use)
 
-;; TODO BUG: Returns a set, at present.  There's no reason to think that when
+;; BUG: Returns a set, at present.  There's no reason to think that when
 ;; converted to a vector, the result is in random order,
 ;; but I need for it to be random if choose-most-successful requires that.
 ;;
@@ -307,22 +308,11 @@
             (recur sample-set)       ; lose it
             (recur (conj sample-set sample))))))))
 
-;; By amalloy, from https://gist.github.com/amalloy/805546:
-;; See also http://stackoverflow.com/questions/3944556/what-if-anything-is-wrong-with-this-shuffling-algorithm-and-how-can-i-know
-(defn lazy-shuffle [coll]
-  ((fn shuffle [^clojure.lang.ITransientVector coll]
-     (lazy-seq
-      (let [c (count coll)]
-        (when-not (zero? c)
-          (let [n (rand-int c)]
-            (cons (get coll n)
-                  (shuffle (.pop (assoc! coll n (get coll (dec c)))))))))))
-   (transient (vec coll))))
+;;;;;;
+;;; The take-randX versions both sample without replacement a collection and shuffle the output.
+;;; take-randnth seems a little slower; the other three are similar in speed.
 
 ;; By amalloy, from https://gist.github.com/amalloy/805546, with small mod by Marshall:
-;; See also:
-;; https://gist.github.com/pepijndevos/805747
-;; http://stackoverflow.com/questions/3944556/what-if-anything-is-wrong-with-this-shuffling-algorithm-and-how-can-i-know
 (defn take-randnth [rng nr coll]
   (take nr
         (rest
@@ -376,6 +366,18 @@
                          (shuffle (pop! (assoc! coll n (get coll (dec c)))))))))))
            (transient coll))))
 
+;; By amalloy, from https://gist.github.com/amalloy/805546:
+;; See also http://stackoverflow.com/questions/3944556/what-if-anything-is-wrong-with-this-shuffling-algorithm-and-how-can-i-know
+(defn lazy-shuffle [coll]
+  ((fn shuffle [^clojure.lang.ITransientVector coll]
+     (lazy-seq
+      (let [c (count coll)]
+        (when-not (zero? c)
+          (let [n (rand-int c)]
+            (cons (get coll n)
+                  (shuffle (.pop (assoc! coll n (get coll (dec c)))))))))))
+   (transient (vec coll))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn choose-others-from-pop
@@ -387,7 +389,7 @@
         size (count restofpop)
         rand-num (.nextInt poisson)
         num-to-choose (if (< rand-num size) rand-num size)] ; When Poisson mean is large, result may be larger than number of indivs.
-    (take-rand3 rng num-to-choose restofpop)))
+    (take-rand5 rng num-to-choose restofpop)))
     ;; old version:
     ;(sample-wout-repl-or-me rng num-to-choose me population)
 
