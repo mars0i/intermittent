@@ -123,7 +123,7 @@
                                 (proxy-super draw indiv graphics info))))
                           0 1.75 (Color. 255 175 175) OrientedPortrayal2D/SHAPE_LINE) ; color is of of orientation line/shape
         soc-edge-portrayal (SimpleEdgePortrayal2D. (Color. 150 150 150) nil)
-        talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 200 225 150 75) nil)] ; here's a beige: (Color. 210 180 140 110)
+        talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 200 225 150 65) nil)] ; here's a beige: (Color. 210 180 140 110)
     ;; set up node display
     (.clear field)
     (lay/set-indiv-locs! rng lay/indiv-position-jitter field communities) ; jitter makes easier to distinguish links that just happen to cross a node
