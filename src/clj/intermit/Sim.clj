@@ -261,15 +261,6 @@
   (let [add-relig (fn [^double acc ^Indiv indiv] (+ acc ^double (getRelig indiv)))]
     (reduce add-relig init-value indivs)))
 
-;; TODO note this means that e.g. if indiv is isolated, then when it happens to get high relig, it will also have high success.  Is that realistic?
-(defn calc-success
-  "Returns the average of relig values of a collection of indivs and
-  one more indiv, who has relig value init-value.  i.e. the sum of all
-  these values is divided by (count indivs) + 1."
-  ^double [^double init-value indivs]
-  (/ (sum-relig init-value indivs) 
-     (inc (count indivs))))
-
 (defn choose-others-from-pop
   "Randomly sample a Poisson-distributed number of indivs from population,
   excluding me.  (The mean for the Poisson distribution is stored in the
@@ -327,6 +318,15 @@
                      (> success1 success2) i1
                      :else i2))))]
     (reduce compare-success models)))
+
+;; TODO note this means that e.g. if indiv is isolated, then when it happens to get high relig, it will also have high success.  Is that realistic?
+(defn calc-success
+  "Returns the average of relig values of a collection of indivs and
+  one more indiv, who has relig value init-value.  i.e. the sum of all
+  these values is divided by (count indivs) + 1."
+  ^double [^double init-value indivs]
+  (/ (sum-relig init-value indivs) 
+     (inc (count indivs))))
 
 (defn add-noise
  "Add Normal noise with stddev to value, clipping to extrema 0.0 and 1.0."
