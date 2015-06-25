@@ -78,6 +78,11 @@
 
 ;; Can't put link-styles here because eval'ing the fn defs produces nothing at this stage
 
+(defn remove-if-identical
+  "Removes from coll any object that's identical to obj."
+  [obj coll]
+  (remove #(identical? obj %) coll))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; INSTANCESTATE FOR SIM CLASS
 ;; Used to hold mutable data in Sim's instanceState variable
@@ -192,8 +197,10 @@
   (getSuccess [this])   
   (getRelig [this])     
   (getNeighbors [this]) 
+  (get-restofpop [this]) 
   (get-prev-speaker [this])
   (add-neighbor! [this newval])
+  (set-restofpop! [this newval])
   (update-success! [this sim])
   (copy-relig! [this sim population]))
 
@@ -212,14 +219,21 @@
 ;; but it's faster than atoms, and these fields get accessed a lot.
 
 
-(deftype Indiv [id ^:volatile-mutable success ^:volatile-mutable relig ^:volatile-mutable neighbors ^:volatile-mutable prevspeaker]
+(deftype Indiv [id
+                ^:volatile-mutable success 
+                ^:volatile-mutable relig 
+                ^:volatile-mutable neighbors 
+                ^:volatile-mutable restofpop
+                ^:volatile-mutable prevspeaker]
   IndivP
     (getId [this] id)
     (getSuccess [this] success)
     (getRelig [this] relig)
     (getNeighbors [this] neighbors)
+    (get-restofpop [this] restofpop)
     (get-prev-speaker [this] prevspeaker)
     (add-neighbor! [this new-neighbor] (set! neighbors (conj neighbors new-neighbor)))
+    (set-restofpop! [this indivs] (set! restofpop indivs))
     (copy-relig! [this sim-state population]
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
             ^MersenneTwisterFast rng (.random sim)
@@ -230,7 +244,7 @@
         (when-let [^Indiv best-model (choose-most-successful 
                                        rng
                                        (into neighbors ;   (a) neighbors, (b) 0 or more random indivs from entire pop
-                                             (choose-others-from-pop rng poisson this population)))]
+                                             (choose-others-from-pop rng poisson this)))]
           (when (> (getSuccess best-model) success)     ; is most successful other, better than me?
             (set! relig (add-noise rng stddev (getRelig best-model)))
             (set! prevspeaker best-model)))))
@@ -260,6 +274,10 @@
   [^double init-value indivs]
   (let [add-relig (fn [^double acc ^Indiv indiv] (+ acc ^double (getRelig indiv)))]
     (reduce add-relig init-value indivs)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; ALTERNATIVE SHUFFLING AND SAMPLING FUNCTIONS (not all in use)
 
 ;; TODO BUG: Returns a set, at present.  There's no reason to think that when
 ;; converted to a vector, the result is in random order,
@@ -305,8 +323,8 @@
 ;; See also:
 ;; https://gist.github.com/pepijndevos/805747
 ;; http://stackoverflow.com/questions/3944556/what-if-anything-is-wrong-with-this-shuffling-algorithm-and-how-can-i-know
-(defn take-randnth [rng num coll]
-  (take num
+(defn take-randnth [rng nr coll]
+  (take nr
         (rest
          (map first
               (iterate (fn [[ret items]]
@@ -318,7 +336,7 @@
                         (vec coll)])))))
 
 ;; by Pepijn de Vos, pepijndevos from https://gist.github.com/pepijndevos/805747, with small mod by Marshall
-; reduce, reorder, subvec, O(m)
+;; Original comment: reduce, reorder, subvec, O(m)
 (defn take-rand3 [rng nr coll]
   (let [len (count coll)
         ; why doesn't rand-int take a start?
@@ -358,17 +376,20 @@
                          (shuffle (pop! (assoc! coll n (get coll (dec c)))))))))))
            (transient coll))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (defn choose-others-from-pop
   "Randomly sample a Poisson-distributed number of indivs from population,
   excluding me.  (The mean for the Poisson distribution is stored in the
   poisson object.)"
-  [^MersenneTwisterFast rng ^Poisson poisson me population]
-  (let [size-wout-me (dec (count population)) ; we're sampling indivs *other* than me; there are count - 1 of them.
+  [^MersenneTwisterFast rng ^Poisson poisson ^Indiv me]
+  (let [restofpop (get-restofpop me)
+        size (count restofpop)
         rand-num (.nextInt poisson)
-        num-to-choose (if (< rand-num size-wout-me) rand-num size-wout-me)] ; When Poisson mean is large, result may be larger than number of indivs.
-    (take-rand3 rng num-to-choose population) ;; TODO BUG NOT RIGHT INCLUDES me
+        num-to-choose (if (< rand-num size) rand-num size)] ; When Poisson mean is large, result may be larger than number of indivs.
+    (take-rand3 rng num-to-choose restofpop)))
+    ;; old version:
     ;(sample-wout-repl-or-me rng num-to-choose me population)
-    ))
 
 
 ;; Can I avoid repeated accesses to the same field, caching them?  Does it matter?
@@ -418,6 +439,7 @@
     (.nextDouble (.random sim-state))  ; success
     (.nextDouble (.random sim-state))  ; relig
     []   ; neighbors
+    []   ; restofpop
     nil))  ; prevspeaker
 
 
@@ -485,6 +507,16 @@
     (link-indivs! link-style rng @(.linkProb (.instanceState sim)) indivs)
     (Community. (str (gensym "c")) indivs)))
 
+(defn make-communities-into-pop!
+  "Given a collection of communities, returns a vector of individuals in all 
+  of the communities after doing any additional housekeeping needed."
+  [communities]
+  (let [population (vec (mapcat get-members communities))]
+    (doseq [indiv population]
+      (set-restofpop! indiv (vec (remove-if-identical indiv population))))
+    population))
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sim: reset of class for overall system
@@ -506,7 +538,7 @@
         indivs-per-community @(.meanIndivsPerCommunity instance-state)
         communities (vec (repeatedly num-communities
                                      #(make-community-of-indivs this indivs-per-community)))
-        population (vec (mapcat get-members communities))
+        population (make-communities-into-pop! communities)
         meanReligSeriesAtom (.meanReligSeries instance-state)]
     ;; set up core simulation structures (the stuff that runs even in headless mode)
     (reset! (.poisson instance-state) (Poisson. @(.globalInterlocMean instance-state) (.random this)))
