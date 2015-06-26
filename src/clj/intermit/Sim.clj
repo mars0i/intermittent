@@ -73,7 +73,7 @@
 (def initial-link-prob 0.20)
 (def initial-tran-stddev 0.02)
 (def initial-global-interloc-mean 0.025)     ; i.e. Poisson-mean interlocutors from global population
-;(def initial-global-interloc-mean 50)     ; i.e. Poisson-mean interlocutors from global population
+;(def initial-global-interloc-mean 3)     ; i.e. Poisson-mean interlocutors from global population
 (def initial-success-stddev 2.0)
 (def initial-link-style "binomial")
 
@@ -312,11 +312,18 @@
 ;;; The take-randX versions both sample without replacement a collection and shuffle the output.
 ;;; take-randnth seems a little slower; the other three are similar in speed.
 
-;; DON'T USE THIS: It uses Java's rng
-;; Very slow for small samples, but incredibly fast for large samples.
-;; by Pepijn de Vos, pepijndevos from https://gist.github.com/pepijndevos/805747, with small mod by Marshall
-; naive, O(n+m)
-(defn take-rand1 [_ n coll] (take n (shuffle coll)))
+;; From Rosetta Code page for "Knuth Shuffle" (= Fisher-Yates): http://rosettacode.org/wiki/Knuth_shuffle#Clojure
+;; Note vect *must* be a vector.  
+;; Very slow on vec of len 200--like take-rand[3-5], it's an order of magnitude slower than bag-shuffle.
+;; I added use of rng, fixed typo (missing paren at end of anonymous fn in original), and added the use
+;; of transients, which produces only a slight improvement.
+(defn rosetta-shuffle [rng vect]
+  (persistent!
+    (reduce (fn [v i] (let [r (.nextInt rng i)]
+                        (assoc! v i (v r) r (v i))))  ; i.e. starting from vector v, replace element at i with (v r), the element at r, and vice versa.
+            (transient vect)
+            (range (dec (count vect)) 1 -1)))) ; counts down from one less than length to 2, inclusive.
+
 
 ;; Marshall Abrams
 ;; Faster than Clojure's shuffle, at least for pops of size 200 or so
@@ -335,6 +342,12 @@
   [rng n coll]
   (subvec (vec (bag-shuffle rng coll)) 0 n))
   ;(take n (bag-shuffle rng coll))) ; seems a little slower than subvec sometimes
+
+;; DON'T USE THIS: It uses Java's rng
+;; Very slow for small samples, but incredibly fast for large samples.
+;; by Pepijn de Vos, pepijndevos from https://gist.github.com/pepijndevos/805747, with small mod by Marshall
+; naive, O(n+m)
+(defn take-rand1 [_ n coll] (take n (shuffle coll)))
  
 ;; THIS ONE IS ACTUALLY A BIT FASTER THAN THE ... COOLER ONES BELOW FOR SMALL SAMPLES,
 ;; BUT IT'S DOG SLOW FOR LARGE SAMPLES--2 orders of magnitude less than take-rand1.
@@ -424,6 +437,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; This is probably going overboard in service of speed, even though the 
+;; optimizations do make big differences.  It's an experiment.
 (defn choose-others-from-pop
   "Randomly sample a Poisson-distributed number of indivs from population,
   excluding me.  (The mean for the Poisson distribution is stored in the
@@ -433,9 +448,23 @@
         size (count restofpop)
         rand-num (.nextInt poisson)
         num-to-choose (if (< rand-num size) rand-num size)] ; When Poisson mean is large, result may be larger than number of indivs.
-    ;; Choose a method that's likely to be fast for this situation (cutoff probably needs adjusting):
-    (cond (== num-to-choose size)  (bag-shuffle rng restofpop) ; return pop, but in random order
-          (> (/ num-to-choose size) 1/5)  (bag-sample rng num-to-choose restofpop) ; for large samples, use the bag shuffle and take. maybe adjust the cutoff.
+    ;; Choose a method that's likely to be fast for this situation (with guesses at cutoffs based on informal tests):
+    (cond (== num-to-choose size)  (bag-shuffle rng restofpop)   ; return pop in random order
+          (zero? num-to-choose) []
+          (== num-to-choose 1) (vector (nth restofpop (.nextInt rng size)))
+          (== num-to-choose 2) (letfn [(one-more [[oldelt :as coll]]                        ; if we only want a small sample, do the stupid thing and just sample until they're unique
+                                         (let [newelt (nth restofpop (.nextInt rng size))]  ; as noisy as this is, it makes a big difference in speed for small Poisson means
+                                           (if (identical? newelt oldelt)
+                                             (recur coll) ; direct recursion may be slightly faster even, but there is a low-probability possibility of blowing the stack
+                                             (conj coll newelt))))]
+                                 (one-more (vector (nth restofpop (.nextInt rng size)))))
+          (<= num-to-choose 9) (letfn [(a-few-more [still-needed coll]                      ; if we only want a small sample, do the stupid thing and just sample until they're unique
+                                         (let [newelt (nth restofpop (.nextInt rng size))]
+                                           (cond (some #(identical? newelt %) coll) (recur still-needed coll) ; can't use this one--already have it
+                                                 (== still-needed 1) (conj coll newelt)                       ; needed just one more, and we found it, so we're done
+                                                 :else (recur (dec still-needed) (conj coll newelt)))))]      ; got a new one, but we need more
+                                 (a-few-more (dec num-to-choose) (vector (nth restofpop (.nextInt rng size))))) ; get the first one
+          (> (/ num-to-choose size) 2/5) (bag-sample rng num-to-choose restofpop) ; for large samples, use the bag shuffle and take
           :else  (take-rand5 rng num-to-choose restofpop))))
 
 
