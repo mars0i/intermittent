@@ -72,8 +72,8 @@
 (def initial-mean-indivs-per-community 15)
 (def initial-link-prob 0.20)
 (def initial-tran-stddev 0.02)
-(def initial-global-interloc-mean 0.025)     ; i.e. Poisson-mean interlocutors from global population
-;(def initial-global-interloc-mean 3)     ; i.e. Poisson-mean interlocutors from global population
+;(def initial-global-interloc-mean 0.025)     ; i.e. Poisson-mean interlocutors from global population
+(def initial-global-interloc-mean 15)     ; i.e. Poisson-mean interlocutors from global population
 (def initial-success-stddev 2.0)
 (def initial-link-style "sequential")
 
@@ -453,18 +453,18 @@
           (zero? num-to-choose) []
           (== num-to-choose 1) (vector (nth restofpop (.nextInt rng size)))
           (== num-to-choose 2) (letfn [(one-more [[oldelt :as coll]]                        ; if we only want a small sample, do the stupid thing and just sample until they're unique
-                                         (let [newelt (nth restofpop (.nextInt rng size))]  ; as noisy as this is, it makes a big difference in speed for small Poisson means
+                                         (let [newelt (nth restofpop (.nextInt rng size))]  ; note that this is not precisely the correct probability.
                                            (if (identical? newelt oldelt)
                                              (recur coll) ; direct recursion may be slightly faster even, but there is a low-probability possibility of blowing the stack
                                              (conj coll newelt))))]
                                  (one-more (vector (nth restofpop (.nextInt rng size)))))
-          (<= num-to-choose 9) (letfn [(a-few-more [still-needed coll]                      ; if we only want a small sample, do the stupid thing and just sample until they're unique
-                                         (let [newelt (nth restofpop (.nextInt rng size))]
+          (<= num-to-choose 5) (letfn [(a-few-more [still-needed coll]                      ; if we only want a small sample, do the stupid thing and just sample until they're unique
+                                         (let [newelt (nth restofpop (.nextInt rng size))]  ; don't let the cutoff be too large; the probs aren't precisely correct here
                                            (cond (some #(identical? newelt %) coll) (recur still-needed coll) ; can't use this one--already have it
                                                  (== still-needed 1) (conj coll newelt)                       ; needed just one more, and we found it, so we're done
                                                  :else (recur (dec still-needed) (conj coll newelt)))))]      ; got a new one, but we need more
                                  (a-few-more (dec num-to-choose) (vector (nth restofpop (.nextInt rng size))))) ; get the first one
-          (> (/ num-to-choose size) 2/5) (bag-sample rng num-to-choose restofpop) ; for large samples, use the bag shuffle and take
+          (> (/ num-to-choose size) 1/50) (bag-sample rng num-to-choose restofpop) ; for large samples, use the bag shuffle and take
           :else  (take-rand5 rng num-to-choose restofpop))))
 
 
