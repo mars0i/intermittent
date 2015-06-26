@@ -73,7 +73,7 @@
 (def initial-link-prob 0.20)
 (def initial-tran-stddev 0.02)
 (def initial-global-interloc-mean 0.025)     ; i.e. Poisson-mean interlocutors from global population
-;(def initial-global-interloc-mean 400)     ; i.e. Poisson-mean interlocutors from global population
+;(def initial-global-interloc-mean 50)     ; i.e. Poisson-mean interlocutors from global population
 (def initial-success-stddev 2.0)
 (def initial-link-style "binomial")
 
@@ -312,33 +312,60 @@
 ;;; The take-randX versions both sample without replacement a collection and shuffle the output.
 ;;; take-randnth seems a little slower; the other three are similar in speed.
 
-;; By amalloy, from https://gist.github.com/amalloy/805546, with small mod by Marshall:
-(defn take-randnth [rng nr coll]
-  (take nr
-        (rest
-         (map first
-              (iterate (fn [[ret items]]
-                         (let [idx (.nextInt rng (count items))]
-                           [(items idx)
-                            (subvec (assoc items idx (items 0))
-                                    1)]))
-                       [nil
-                        (vec coll)])))))
-
+;; DON'T USE THIS: It uses Java's rng
+;; Very slow for small samples, but incredibly fast for large samples.
 ;; by Pepijn de Vos, pepijndevos from https://gist.github.com/pepijndevos/805747, with small mod by Marshall
-;; Original comment: reduce, reorder, subvec, O(m)
+; naive, O(n+m)
+(defn take-rand1 [_ n coll] (take n (shuffle coll)))
+
+;; Marshall Abrams
+;; Faster than Clojure's shuffle, at least for pops of size 200 or so
+(defn bag-shuffle
+  [rng coll]
+  (let [bag (sim.util.Bag. coll)]
+    (.shuffle bag rng)
+    bag))
+
+;; On large sample, almost as fast as take-rand1, but uses MersenneTwisterFast.
+;; Note that the 'take' gives a 2X drop in perf over mere bag-shuffle, so 
+;; if you know you want the whole thing, just shuffle it.
+;; On small sample, order of mag slower than take-rand[3-5].
+;; Marshall Abrams
+(defn bag-sample
+  [rng n coll]
+  (subvec (vec (bag-shuffle rng coll)) 0 n))
+  ;(take n (bag-shuffle rng coll))) ; seems a little slower than subvec sometimes
+ 
+;; THIS ONE IS ACTUALLY A BIT FASTER THAN THE ... COOLER ONES BELOW FOR SMALL SAMPLES,
+;; BUT IT'S DOG SLOW FOR LARGE SAMPLES--2 orders of magnitude less than take-rand1.
+;; by Pepijn de Vos, pepijndevos from https://gist.github.com/pepijndevos/805747, with small mod by Marshall
+; lazy, O(n!@#$%m^&)
+(defn take-rand2 [rng n coll]
+  (let [coll (vec coll)
+        len (count coll)]
+    (take n (distinct (repeatedly #(nth coll (.nextInt rng len)))))))
+
+;; TODO CHECK WHETHER THESE ARE FISHER-YATES SHUFFLES:
+
+;; Excellent on small samples, though not as good as take-rand2.
+;; One order of magnitude slower than take-rand1 on large samples.
+;; by Pepijn de Vos, pepijndevos from https://gist.github.com/pepijndevos/805747, with small mod by Marshall
+;; reduce, reorder, subvec, O(m)
 (defn take-rand3 [rng nr coll]
   (let [len (count coll)
         ; why doesn't rand-int take a start?
         rand-int (fn [lo hi] (+ lo (.nextInt rng (- hi lo))))]
     (subvec (->> (range nr)
-                 (reduce #(conj %1 [%2 (rand-int %2 len)]) [])
+                 (reduce #(conj %1 [%2 (rand-int %2 len)]) []) ; for ea num in range, assoc it with a rand idx between num and end
                  (reduce
                    (fn swap [a [i b]]
                       (assoc a b (get a i) i (get a b)))
                    coll))
             0 nr)))
 
+
+;; Excellent on small samples, though not as good as take-rand2.
+;; One order of magnitude slower than take-rand1 on large samples.
 ;; from https://gist.github.com/pepijndevos/805747, by amalloy (?), with small mod by Marshall
 ; amalloy, O(m)
 (defn take-rand4 [rng nr coll]
@@ -353,6 +380,9 @@
               coll])
     nr)))
 
+;; Excellent on small samples, though not as good as take-rand2.
+;; One order of magnitude slower than take-rand1 on large samples.
+;; A LITTLE FASTER than the preceding two on large samples.
 ;; from https://gist.github.com/pepijndevos/805747, by amalloy (?), with small mod by Marshall
 ; amalloy, o(mg)
 (defn take-rand5 [rng nr coll]
@@ -365,6 +395,20 @@
                    (cons (get coll n)
                          (shuffle (pop! (assoc! coll n (get coll (dec c)))))))))))
            (transient coll))))
+
+;; One order of magnitude slower than take-rand1 on large samples.
+;; By amalloy, from https://gist.github.com/amalloy/805546, with small mod by Marshall:
+(defn take-randnth [rng nr coll]
+  (take nr
+        (rest
+         (map first
+              (iterate (fn [[ret items]]
+                         (let [idx (.nextInt rng (count items))]
+                           [(items idx)
+                            (subvec (assoc items idx (items 0))
+                                    1)]))
+                       [nil
+                        (vec coll)])))))
 
 ;; By amalloy, from https://gist.github.com/amalloy/805546:
 ;; See also http://stackoverflow.com/questions/3944556/what-if-anything-is-wrong-with-this-shuffling-algorithm-and-how-can-i-know
@@ -389,9 +433,10 @@
         size (count restofpop)
         rand-num (.nextInt poisson)
         num-to-choose (if (< rand-num size) rand-num size)] ; When Poisson mean is large, result may be larger than number of indivs.
-    (take-rand5 rng num-to-choose restofpop)))
-    ;; old version:
-    ;(sample-wout-repl-or-me rng num-to-choose me population)
+    ;; Choose a method that's likely to be fast for this situation (cutoff probably needs adjusting):
+    (cond (== num-to-choose size)  (bag-shuffle rng restofpop) ; return pop, but in random order
+          (> (/ num-to-choose size) 1/5)  (bag-sample rng num-to-choose restofpop) ; for large samples, use the bag shuffle and take. maybe adjust the cutoff.
+          :else  (take-rand5 rng num-to-choose restofpop))))
 
 
 ;; Can I avoid repeated accesses to the same field, caching them?  Does it matter?
