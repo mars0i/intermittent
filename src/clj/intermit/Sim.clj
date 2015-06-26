@@ -73,7 +73,7 @@
 (def initial-link-prob 0.20)
 (def initial-tran-stddev 0.02)
 ;(def initial-global-interloc-mean 0.025)     ; i.e. Poisson-mean interlocutors from global population
-(def initial-global-interloc-mean 15)     ; i.e. Poisson-mean interlocutors from global population
+(def initial-global-interloc-mean 1)     ; i.e. Poisson-mean interlocutors from global population
 (def initial-success-stddev 2.0)
 (def initial-link-style "sequential")
 
