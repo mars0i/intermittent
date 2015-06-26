@@ -75,7 +75,7 @@
 (def initial-global-interloc-mean 0.025)     ; i.e. Poisson-mean interlocutors from global population
 ;(def initial-global-interloc-mean 3)     ; i.e. Poisson-mean interlocutors from global population
 (def initial-success-stddev 2.0)
-(def initial-link-style "binomial")
+(def initial-link-style "sequential")
 
 ;; Can't put link-styles here because eval'ing the fn defs produces nothing at this stage
 
