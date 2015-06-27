@@ -67,7 +67,7 @@
         thing-height (/ height num-vert)]
     [thing-width   ; Let caller know size of elements, in case we
      thing-height  ;   want to put things inside them.
-     (for [i (range num-horiz)  ; coords to put arrange things in a lattice
+     (for [i (range num-horiz)  ; coords to arrange things in a lattice
            j (range num-vert)
            :let [thing (get things (+ i (* j num-horiz)))] ; When num elts doesn't factor, near-factor returns
            :when thing]                                    ;  factors for count+1, so last elt will be missing.
