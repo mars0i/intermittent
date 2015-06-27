@@ -633,7 +633,7 @@
         meanReligSeriesAtom (.meanReligSeries instance-state)]
     ;; set up core simulation structures (the stuff that runs even in headless mode)
     (reset! (.poisson instance-state) (Poisson. @(.globalInterlocMean instance-state) (.random this)))
-    (reset! (.gaussian instance-state) (Normal. 0.0 1.0 (.random this)))
+    (reset! (.gaussian instance-state) (Normal. 0.0 1.0 (.random this))) ; mean and sd here can be overridden later
     (reset! (.communities instance-state) communities)
     (reset! (.population instance-state) population)
     (reset! meanReligSeriesAtom [])
