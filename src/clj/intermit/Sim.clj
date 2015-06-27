@@ -22,7 +22,7 @@
 ;; Put gen-class Sim first so we can type-hint methods in Indiv etc.
 ;; But put intermit.Sim's methods at end, so we can type-hint references to Indiv, etc. in them.
 (ns intermit.Sim
-  (:require [intermit.utils :as u])
+  ;(:require [intermit.utils :as u])
   (:import [sim.engine Steppable Schedule]
            [sim.portrayal Oriented2D]
            [sim.util Interval Double2D]
@@ -59,8 +59,9 @@
                         [getSuccessDistribution [] "[D" ]
                         [getMeanSuccessDistribution [] "[D" ]
                         [getMeanSuccessTimeSeries [] "[Lsim.util.Double2D;"]
-                        [getLinkStyle [] java.lang.String]
-                        [setLinkStyle [java.lang.String] void]]
+                        [getLinkStyle [] long]
+                        [setLinkStyle [long] void]
+                        [domLinkStyle [] java.lang.Object]]
               :state instanceState
               :init init-instance-state
               :main true))
@@ -69,19 +70,18 @@
 ;; DEFAULTS AND GENERAL UTILITY CODE
 
 (declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-noise sum-relig calc-success getRelig
-         getSuccess get-population link-styles binomial-link-indivs! sequential-link-indivs! both-link-indivs!)
+         getSuccess get-population link-styles binomial-link-indivs! sequential-link-indivs! both-link-indivs! 
+         link-style-names link-style-idxs binomial-link-style-idx sequential-link-style-idx both-link-style-idx)
 
 (def initial-num-communities 12) ; use something that factors into x and y dimensions
 (def initial-mean-indivs-per-community 15)
 (def initial-link-prob 0.20)
-(def initial-tran-stddev 0.02)
-;(def initial-global-interloc-mean 0.025)     ; i.e. Poisson-mean interlocutors from global population
-(def initial-global-interloc-mean 1)     ; i.e. Poisson-mean interlocutors from global population
+(def initial-tran-stddev 0.03)
+(def initial-global-interloc-mean 0.01)     ; i.e. Poisson-mean interlocutors from global population
 (def initial-success-stddev 2.0)
 (def initial-success-mean 0.0)
-(def initial-link-style "sequential")
-
-;; Can't put link-styles here because eval'ing the fn defs produces nothing at this stage
+(def initial-link-style-idx 1) ; This is an index into link-style-names and link-style-fns, defined below.
+;; (We can't put link-style-fns here; eval'ing them at this point produces nothing.)
 
 (defn remove-if-identical
   "Removes from coll any object that's identical to obj."
@@ -107,7 +107,7 @@
                         gaussian
                         meanReligSeries
                         meanSuccessSeries
-                        linkStyle])
+                        linkStyleIdx]) ; see sect 3.4.2, "MASON Extensions",  of MASON manual v. 19
 
 (defn -init-instance-state
   "Initializes instance-state when an instance of class Sim is created."
@@ -125,7 +125,7 @@
                           (atom nil)   ; gaussian
                           (atom [])    ; meanReligSeries
                           (atom [])    ; meanSuccessSeries
-                          (atom initial-link-style))]) 
+                          (atom initial-link-style-idx))]) 
 
 (defn -getNumCommunities ^long [^Sim this] @(.numCommunities ^InstanceState (.instanceState this)))
 (defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities ^InstanceState (.instanceState this)) newval))
@@ -150,9 +150,15 @@
 (defn -getSuccessMean ^double [^Sim this] @(.successMean ^InstanceState (.instanceState this)))
 (defn -setSuccessMean [^Sim this ^double newval] (reset! (.successMean ^InstanceState (.instanceState this)) newval))
 (defn -domSuccessMean [this] (Interval. -1.0 1.0)) 
-(defn -getLinkStyle ^java.lang.String [^Sim this] @(.linkStyle ^InstanceState (.instanceState this)))
-(defn -setLinkStyle [^Sim this ^java.lang.String newval] (reset! (.linkStyle ^InstanceState (.instanceState this)) newval))
-(defn -domLinkStyle [^Sim this] (into-array (keys link-styles)))
+
+;; We set the function that decides how to link nodes using MASON's popup menu functionality,
+;; which uses a mapping between strings in an array and their indexes.  It's the string that's
+;; displayed; it's the index that's returned, and that we need to use to choose the appropriate function.
+;; See related defs below, and sect 3.4.2, "MASON Extensions",  of MASON manual v. 19.
+(defn -getLinkStyle ^long [^Sim this] @(.linkStyleIdx ^InstanceState (.instanceState this)))
+(defn -setLinkStyle [^Sim this ^long newval] (reset! (.linkStyleIdx ^InstanceState (.instanceState this)) newval))
+(defn -domLinkStyle [^Sim this] (into-array link-style-names))
+
 
 ;; Useful since the fields contain atoms:
 (defn get-communities [^Sim this] @(.communities ^InstanceState (.instanceState this)))
@@ -567,13 +573,20 @@
   (sequential-link-indivs! indivs)
   (binomial-link-indivs! rng prob indivs))
 
-(def link-styles {"binomial" binomial-link-indivs!
-                  "sequential" sequential-link-indivs!
-                  "both" both-link-indivs!})
+;; These defs must match up.  Not very Clojurely; needed for MASON auto-dropdown.
+;; See comment above near domLinkStyles, and sect 3.4.2, "MASON Extensions",  of MASON manual v. 19.
+(def link-style-names ["binomial"             "sequential"             "both"])
+(def link-style-fns   [binomial-link-indivs!  sequential-link-indivs!  both-link-indivs!] )
+(def binomial-link-style-idx 0)
+(def sequential-link-style-idx 1)
+(def both-link-style-idx 2)
 
 (defn link-indivs!
-  [keystr rng prob indivs]
-  ((get link-styles keystr initial-link-style) rng prob indivs)) ; if user enters bad string, uses initial-link-style
+  [idx rng prob indivs]
+  ((get link-style-fns idx (get link-style-fns initial-link-style-idx)) ; the fallback case works in first run, when the atom contains a nil
+   rng
+   prob
+   indivs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
@@ -594,8 +607,8 @@
   [sim size]
   (let [indivs  (vec (repeatedly size #(make-indiv sim))) ; it's short; don't wait for late-realization bugs.
         rng (.random sim)
-        link-style @(.linkStyle (.instanceState sim))]
-    (link-indivs! link-style rng @(.linkProb (.instanceState sim)) indivs)
+        link-style-idx @(.linkStyleIdx (.instanceState sim))]
+    (link-indivs! link-style-idx rng @(.linkProb (.instanceState sim)) indivs)
     (Community. (str (gensym "c")) indivs)))
 
 (defn make-communities-into-pop!
