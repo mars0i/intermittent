@@ -64,6 +64,7 @@
 
 ;; Override methods in sim.display.GUIState so that UI can make graphs, etc.
 (defn -getSimulationInspectedObject [this] (.state this))
+;; This controls makes the controls for the sim state in the Model tab (and does other things?):
 (defn -getInspector [this]
   (let [i (.superGetInspector this)]
     (.setVolatile i true)
@@ -121,12 +122,15 @@
                               (let [shade (int (* (.getRelig indiv) 255))]
                                 (set! (.-paint this) (Color. shade 0 (- 255 shade))) ; paint var is in OvalPortrayal2D
                                 (proxy-super draw indiv graphics info))))
-                          0 1.75 (Color. 255 175 175) OrientedPortrayal2D/SHAPE_LINE) ; color is of of orientation line/shape
+                          0 1.75 (Color. 255 175 175) OrientedPortrayal2D/SHAPE_LINE) ; color is of orientation line/shape
         soc-edge-portrayal (SimpleEdgePortrayal2D. (Color. 150 150 150) nil)
-        talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 200 225 150 65) nil)] ; here's a beige: (Color. 210 180 140 110)
+        talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 200 225 150 75) nil)]
     ;; set up node display
     (.clear field)
-    (lay/set-indiv-locs! rng lay/indiv-position-jitter field communities) ; jitter makes easier to distinguish links that just happen to cross a node
+    (lay/set-indiv-locs! rng
+                         (if (= (.getLinkStyle sim) s/sequential-link-style-idx) 0.0 lay/indiv-position-jitter) ; jitter makes it easier to distinguish links that just happen to cross a node
+                         field
+                         communities)
     (.setPortrayalForClass field-portrayal intermit.Sim.Indiv indiv-portrayal)
     ;; set up within-community social network link display:
     (.clear soc-net)
@@ -144,13 +148,6 @@
       (.reset )
       (.setBackdrop (Color. 10 10 10)) ; almost black
       (.repaint))))
-
-
-;;    (.setPortrayalForClass field-portrayal intermit.Sim.Indiv (OvalPortrayal2D. (Color. 0 0 255) 1.5))
-;; community display--not in use:
-    ;; specify where community objects should be placed, and what they look like:
-    ;(lay/set-community-locs! field communities) ; not currently displaying communities per se
-    ;(.setPortrayalForClass field-portrayal intermit.Sim.Community (OvalPortrayal2D. (Color. 255 0 0) 2.0))
 
 (defn -init
   [this controller] ; controller is called c in Java version
