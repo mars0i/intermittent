@@ -26,7 +26,7 @@
   (:import [sim.engine Steppable Schedule]
            [sim.portrayal Oriented2D]
            [sim.util Interval Double2D]
-           [sim.util.distribution Poisson]
+           [sim.util.distribution Poisson Normal]
            [ec.util MersenneTwisterFast]
            [java.lang String]
            [java.util Collection]
@@ -104,6 +104,7 @@
                         communities             ; holds the communities
                         population              ; holds all individuals
                         poisson
+                        gaussian
                         meanReligSeries
                         meanSuccessSeries
                         linkStyle])
@@ -121,6 +122,7 @@
                           (atom nil)   ; communities
                           (atom nil)   ; population
                           (atom nil)   ; poisson
+                          (atom nil)   ; gaussian
                           (atom [])    ; meanReligSeries
                           (atom [])    ; meanSuccessSeries
                           (atom initial-link-style))]) 
@@ -249,6 +251,7 @@
             ^MersenneTwisterFast rng (.random sim)
             ^InstanceState istate (.instanceState sim)
             ^Poisson poisson @(.poisson istate)
+            ^Normal gaussian @(.gaussian istate)
             ^double stddev @(.tranStddev istate)]
         (set! prevspeaker nil) ; maybe refactor when-let, when below to make this the alt condition
         (when-let [^Indiv best-model (choose-most-successful 
@@ -256,15 +259,15 @@
                                        (into neighbors ;   (a) neighbors, (b) 0 or more random indivs from entire pop
                                              (choose-others-from-pop rng poisson this)))]
           (when (> (getSuccess best-model) success)     ; is most successful other, better than me?
-            (set! relig (add-noise rng 0.0 stddev (getRelig best-model)))
+            (set! relig (add-noise gaussian 0.0 stddev (getRelig best-model)))
             (set! prevspeaker best-model)))))
     (update-success! [this sim-state]
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
-            ^MersenneTwisterFast rng (.random sim)
             ^InstanceState istate (.instanceState sim)
+            ^Normal gaussian @(.gaussian istate)
             ^double stddev @(.successStddev istate)
             ^double mean @(.successMean istate)]
-        (set! success (add-noise rng mean stddev (calc-success relig neighbors)))))
+        (set! success (add-noise gaussian mean stddev (calc-success relig neighbors)))))
   Steppable
     ;; Note that by maintaining only a single version of vars, and allowing each indiv to be stepped in random order, we allow per-tick path dependencies.
     (step [this sim-state] 
@@ -514,8 +517,8 @@
 ;; nextGaussian has mean 0 and stddev 1, I believe
 (defn add-noise
  "Add Normal noise with stddev to value, clipping to extrema 0.0 and 1.0."
-  ^double [^MersenneTwisterFast rng ^double mean ^double stddev ^double value]
-  (max 0.0 (min 1.0 (+ value mean (* stddev ^double (.nextGaussian rng))))))
+  ^double [^Normal gaussian ^double mean ^double stddev ^double value]
+  (max 0.0 (min 1.0 (+ value ^double (.nextDouble gaussian mean stddev)))))
 
 ;;; Initialization functions:
 
@@ -630,6 +633,7 @@
         meanReligSeriesAtom (.meanReligSeries instance-state)]
     ;; set up core simulation structures (the stuff that runs even in headless mode)
     (reset! (.poisson instance-state) (Poisson. @(.globalInterlocMean instance-state) (.random this)))
+    (reset! (.gaussian instance-state) (Normal. 0.0 1.0 (.random this)))
     (reset! (.communities instance-state) communities)
     (reset! (.population instance-state) population)
     (reset! meanReligSeriesAtom [])
