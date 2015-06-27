@@ -50,6 +50,9 @@
                         [getSuccessStddev [] double]
                         [setSuccessStddev [double] void]
                         [domSuccessStddev [] java.lang.Object]
+                        [getSuccessMean [] double]
+                        [setSuccessMean [double] void]
+                        [domSuccessMean [] java.lang.Object]
                         [getReligDistribution [] "[D" ]
                         [getMeanReligDistribution [] "[D" ]
                         [getMeanReligTimeSeries [] "[Lsim.util.Double2D;"]
@@ -75,6 +78,7 @@
 ;(def initial-global-interloc-mean 0.025)     ; i.e. Poisson-mean interlocutors from global population
 (def initial-global-interloc-mean 1)     ; i.e. Poisson-mean interlocutors from global population
 (def initial-success-stddev 2.0)
+(def initial-success-mean 0.0)
 (def initial-link-style "sequential")
 
 ;; Can't put link-styles here because eval'ing the fn defs produces nothing at this stage
@@ -96,6 +100,7 @@
                         tranStddev
                         globalInterlocMean ; mean number of interlocutors from global pop
                         successStddev
+                        successMean
                         communities             ; holds the communities
                         population              ; holds all individuals
                         poisson
@@ -112,6 +117,7 @@
                           (atom initial-tran-stddev)
                           (atom initial-global-interloc-mean)
                           (atom initial-success-stddev)
+                          (atom initial-success-mean)
                           (atom nil)   ; communities
                           (atom nil)   ; population
                           (atom nil)   ; poisson
@@ -138,7 +144,10 @@
 ;(defn -domGlobalInterlocMean [this] (Interval. 0.0 20.0)) ; a mean for a Poisson distribution.  Should go high enough to guarantee that everyone talks to everyone, but large numbers choke the app.
 (defn -getSuccessStddev ^double [^Sim this] @(.successStddev ^InstanceState (.instanceState this)))
 (defn -setSuccessStddev [^Sim this ^double newval] (reset! (.successStddev ^InstanceState (.instanceState this)) newval))
-(defn -domSuccessStddev [this] (Interval. 0.0 4.0)) ; since success ranges from 0 to 1, it doesn't make sense to have a stddev that's much larger than about 0.7.
+(defn -domSuccessStddev [this] (Interval. 0.0 3.0))
+(defn -getSuccessMean ^double [^Sim this] @(.successMean ^InstanceState (.instanceState this)))
+(defn -setSuccessMean [^Sim this ^double newval] (reset! (.successMean ^InstanceState (.instanceState this)) newval))
+(defn -domSuccessMean [this] (Interval. -1.0 1.0)) 
 (defn -getLinkStyle ^java.lang.String [^Sim this] @(.linkStyle ^InstanceState (.instanceState this)))
 (defn -setLinkStyle [^Sim this ^java.lang.String newval] (reset! (.linkStyle ^InstanceState (.instanceState this)) newval))
 (defn -domLinkStyle [^Sim this] (into-array (keys link-styles)))
@@ -247,14 +256,15 @@
                                        (into neighbors ;   (a) neighbors, (b) 0 or more random indivs from entire pop
                                              (choose-others-from-pop rng poisson this)))]
           (when (> (getSuccess best-model) success)     ; is most successful other, better than me?
-            (set! relig (add-noise rng stddev (getRelig best-model)))
+            (set! relig (add-noise rng 0.0 stddev (getRelig best-model)))
             (set! prevspeaker best-model)))))
     (update-success! [this sim-state]
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
             ^MersenneTwisterFast rng (.random sim)
             ^InstanceState istate (.instanceState sim)
-            ^double stddev @(.successStddev istate)]
-        (set! success (add-noise rng stddev (calc-success relig neighbors)))))
+            ^double stddev @(.successStddev istate)
+            ^double mean @(.successMean istate)]
+        (set! success (add-noise rng mean stddev (calc-success relig neighbors)))))
   Steppable
     ;; Note that by maintaining only a single version of vars, and allowing each indiv to be stepped in random order, we allow per-tick path dependencies.
     (step [this sim-state] 
@@ -500,10 +510,12 @@
   (/ (sum-relig init-value indivs) 
      (inc (count indivs))))
 
+;; TODO THIS IS NOT RIGHT.  MERELY MULTIPLYING BY STDDEV DOESN'T GIVE YOU A PROBABILITY DIST, SINCE THE INNER SD PARAM IS UNMODIFIED.
+;; nextGaussian has mean 0 and stddev 1, I believe
 (defn add-noise
  "Add Normal noise with stddev to value, clipping to extrema 0.0 and 1.0."
-  ^double [^MersenneTwisterFast rng ^double stddev ^double value]
-  (max 0.0 (min 1.0 (+ value (* stddev ^double (.nextGaussian rng))))))
+  ^double [^MersenneTwisterFast rng ^double mean ^double stddev ^double value]
+  (max 0.0 (min 1.0 (+ value mean (* stddev ^double (.nextGaussian rng))))))
 
 ;;; Initialization functions:
 
