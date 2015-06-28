@@ -654,9 +654,11 @@
   set of communities, each with a new set of community members."
   [^Sim this]
   (.superStart this)
-  (when commandline
-    (when-let [num-comms (:num-comms commandline)]
-      (.setNumCommunities this num-comms)))
+  (println @commandline)
+  (when @commandline
+    (println "1")
+    (let [[options arguments errors summary] @commandline]
+      (when-let [num-comms (:num-comms options)] (do (println num-comms) (.setNumCommunities this num-comms)))))
   (let [^Schedule schedule (.schedule this)
         ^InstanceState instance-state (.instanceState this)
         num-communities  @(.numCommunities instance-state)
