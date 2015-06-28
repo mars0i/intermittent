@@ -22,7 +22,8 @@
 ;; Put gen-class Sim first so we can type-hint methods in Indiv etc.
 ;; But put intermit.Sim's methods at end, so we can type-hint references to Indiv, etc. in them.
 (ns intermit.Sim
-  (:require [clojure.tools.cli :as cli])
+  (:require [clojure.tools.cli :as cli]
+            [clojure.pprint :as pp])
   (:import [sim.engine Steppable Schedule]
            [sim.portrayal Oriented2D]
            [sim.util Interval Double2D]
@@ -94,26 +95,29 @@
 ;; Need def here so we can type-hint Indiv's methods
 
 ;; Note some of these have to be atoms so that that we can allow restarting with a different setup.
-(deftype InstanceState [numCommunities          ; number of communities
+(deftype InstanceState [; run parameters:
+                        numCommunities          ; number of communities
                         meanIndivsPerCommunity  ; mean or exact number of indivs in each
+                        linkStyleIdx ; see sect 3.4.2, "MASON Extensions",  of MASON manual v. 19
                         linkProb
                         tranStddev
                         globalInterlocMean ; mean number of interlocutors from global pop
                         successStddev
                         successMean
+                        ; runtime storage slots:
                         communities             ; holds the communities
                         population              ; holds all individuals
-                        poisson
-                        gaussian
-                        meanReligSeries
-                        meanSuccessSeries
-                        linkStyleIdx]) ; see sect 3.4.2, "MASON Extensions",  of MASON manual v. 19
+                        poisson                 ; a Poisson-distribution wrapper
+                        gaussian                ; a Normally-distribution wrapper
+                        meanReligSeries         ; records mean relig values at timestep
+                        meanSuccessSeries])     ; records mean success values at timestep
 
 (defn -init-instance-state
   "Initializes instance-state when an instance of class Sim is created."
   [seed]
   [[seed] (InstanceState. (atom initial-num-communities)
                           (atom initial-mean-indivs-per-community) 
+                          (atom initial-link-style-idx)
                           (atom initial-link-prob)
                           (atom initial-tran-stddev)
                           (atom initial-global-interloc-mean)
@@ -124,8 +128,7 @@
                           (atom nil)   ; poisson
                           (atom nil)   ; gaussian
                           (atom [])    ; meanReligSeries
-                          (atom [])    ; meanSuccessSeries
-                          (atom initial-link-style-idx))]) 
+                          (atom []))]) ; meanSuccessSeries
 
 (defn -getNumCommunities ^long [^Sim this] @(.numCommunities ^InstanceState (.instanceState this)))
 (defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities ^InstanceState (.instanceState this)) newval))
@@ -625,38 +628,57 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sim: reset of class for overall system
 
-;; TODO COMMANDLINE OPTION STUFF DOESN'T WORK
-
-(def cli-options [["-h" "--help" "Print this help"]
-                  ["-n" "--num-comms <number of communities>" "Number of communities" :parse-fn #(Integer. %)]])
-
-(defn usage [options]
-  (let [fmt-line (fn [[short-opt long-opt desc]] (str short-opt ", " long-opt ": " desc))]
-    (clojure.string/join "\n" (concat (map fmt-line options)))))
-
-(defn error-msg [errors] (str "The following errors occurred while parsing your command:\n\n" (apply str errors)))
-
 (def commandline (atom nil)) ; toplevel var to pass info from main to start. Must be a better way.
+
+(defn record-commandline-args 
+  [args]
+  (let [cli-options [["-h" "--help" "Print this help"]
+                     ["-n" "--num-comms <number of communities>" "Number of communities" :parse-fn #(Integer. %)]]
+        usage-fmt (fn [options]
+                    (let [fmt-line (fn [[short-opt long-opt desc]] (str short-opt ", " long-opt ": " desc))]
+                      (clojure.string/join "\n" (concat (map fmt-line options)))))
+        error-fmt (fn [errors] (str "The following errors occurred while parsing your command:\n\n" (apply str errors)))
+        {:keys [options arguments errors summary] :as commline} (clojure.tools.cli/parse-opts args cli-options)]
+    (when (:help options)
+      (println (usage-fmt cli-options))
+      (System/exit 0))
+    (when errors 
+      (println (error-fmt errors))
+      (System/exit 1))
+    (reset! commandline commline))) ; to be read in start method
 
 (defn -main
   [& args]
-  (let [{:keys [options arguments errors summary] :as commline} (clojure.tools.cli/parse-opts args cli-options)]
-    (reset! commandline commline) ; toplevel var for start() to find. Must be a better way.
-    (when (:help options) (do (println (usage cli-options)) (System/exit 0)))
-    (when errors (do (println (error-msg errors)) (System/exit 1)))
-    (sim.engine.SimState/doLoop intermit.Sim (into-array String args))
-    (System/exit 0)))
+  (record-commandline-args args)
+  (sim.engine.SimState/doLoop intermit.Sim (into-array String args))
+  (System/exit 0))
 
-;; doall all sequences below.  They're short, so there's no point in waiting for
-;; them to get realized who knows where/when, given that the program has mutable state.
+(defn report-run-params
+  [^Sim sim]
+  (let [istate (.instanceState sim)]
+    (pp/cl-format true
+                  "~ax~a indivs, link style = ~a, link prob (if relevant) = ~a, tran stddev = ~a, global interlocutor mean = ~a, success stddev = ~a, success mean = ~a~%"
+                  @(.numCommunities istate)
+                  @(.meanIndivsPerCommunity istate)
+                  (link-style-names @(.linkStyleIdx istate))
+                  @(.linkProb istate)
+                  @(.tranStddev istate)
+                  @(.globalInterlocMean istate)
+                  @(.successStddev istate)
+                  @(.successMean istate))))
+
+
+;; doall all sequences below.  They're short, so there's no point in waiting for them to get realized who knows where/when.
 (defn -start
   "Function called to (re)start a new simulation run.  Initializes a new
   set of communities, each with a new set of community members."
   [^Sim this]
   (.superStart this)
+  ;; If user passed commandline options, use them to set parameters, rather than defaults:
   (when @commandline
     (let [{:keys [options arguments errors summary]} @commandline]
       (when-let [num-comms (:num-comms options)] (.setNumCommunities this num-comms))))
+  ;; Construct core data structures of the simulation:
   (let [^Schedule schedule (.schedule this)
         ^InstanceState instance-state (.instanceState this)
         num-communities  @(.numCommunities instance-state)
@@ -665,20 +687,23 @@
                                      #(make-community-of-indivs this indivs-per-community)))
         population (make-communities-into-pop! communities)
         meanReligSeriesAtom (.meanReligSeries instance-state)]
-    ;; set up core simulation structures (the stuff that runs even in headless mode)
+    ;; Record core data structures and utility states:
     (reset! (.poisson instance-state) (Poisson. @(.globalInterlocMean instance-state) (.random this)))
     (reset! (.gaussian instance-state) (Normal. 0.0 1.0 (.random this))) ; mean and sd here can be overridden later
     (reset! (.communities instance-state) communities)
     (reset! (.population instance-state) population)
     (reset! meanReligSeriesAtom [])
+    ;; Schedule each indiv's step function:
     (doseq [indiv population] (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))  ; indivs' step fns run first to communicate relig
-    (.scheduleRepeating schedule Schedule/EPOCH 1            ; then update success fields afterwards
+    ;; Schedule a step to update each indiv's success field:
+    (.scheduleRepeating schedule Schedule/EPOCH 1                                    ; then update success fields afterwards
                         (reify Steppable 
                           (step [this sim-state]
                             (doseq [^Indiv indiv population] (update-success! indiv sim-state))
                             (swap! meanReligSeriesAtom
                                    conj 
                                    (Double2D.
-                                     (double (.getSteps schedule)) ; coercion will happen automatically; I made it explicit. getTime incorrect if funny scheduling.
+                                     (double (.getSteps schedule)) ; coercion will happen automatically; I made it explicit. (getTime incorrect if funny scheduling.)
                                      (/ (sum-relig 0.0 population)
-                                        (count population)))))))))
+                                        (count population))))))))
+  (report-run-params this))
