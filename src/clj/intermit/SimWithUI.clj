@@ -76,15 +76,16 @@
 
 (defn -main
   [& args]
+  (s/record-commandline-args args) 
   (let [vid (intermit.SimWithUI. (intermit.Sim. (System/currentTimeMillis)))]
-    (s/record-commandline-args args) 
     (.setVisible (Console. vid) true)))
 
 (defn -getName [this] "Intermittent") ; override method in super
 
+;; This is called by the pause and go buttons when starting from fully stopped.
 (defn -start
   [this-gui]
-  (.superStart this-gui) ; this will call start() on the sim, i.e. our SimState object
+  (.superStart this-gui) ; this will call start() on the sim, i.e. in our SimState object
   (setup-portrayals this-gui)
   (schedule-talk-links this-gui)) ; TODO: Question: SHOULD THIS BE IN INIT??
 
