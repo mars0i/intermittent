@@ -76,6 +76,7 @@
 
 (defn -main
   [& args]
+  (s/record-commandline-args args)
   (let [vid (intermit.SimWithUI. (intermit.Sim. (System/currentTimeMillis)))]
     (.setVisible (Console. vid) true)))
 
