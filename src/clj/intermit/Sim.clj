@@ -628,7 +628,7 @@
 ;; TODO COMMANDLINE OPTION STUFF DOESN'T WORK
 
 (def cli-options [["-h" "--help" "Print this help"]
-                  ["-n" "--num-comms" "Number of communities"]])
+                  ["-n" "--num-comms <number of communities>" "Number of communities" :parse-fn #(Integer. %)]])
 
 (defn usage [options]
   (let [fmt-line (fn [[short-opt long-opt desc]] (str short-opt ", " long-opt ": " desc))]
@@ -640,7 +640,7 @@
 
 (defn -main
   [& args]
-  (let [{:keys [options arguments errors summary :as commline]} (clojure.tools.cli/parse-opts args cli-options)]
+  (let [{:keys [options arguments errors summary] :as commline} (clojure.tools.cli/parse-opts args cli-options)]
     (reset! commandline commline) ; toplevel var for start() to find. Must be a better way.
     (when (:help options) (do (println (usage cli-options)) (System/exit 0)))
     (when errors (do (println (error-msg errors)) (System/exit 1)))
@@ -654,11 +654,9 @@
   set of communities, each with a new set of community members."
   [^Sim this]
   (.superStart this)
-  (println @commandline)
   (when @commandline
-    (println "1")
-    (let [[options arguments errors summary] @commandline]
-      (when-let [num-comms (:num-comms options)] (do (println num-comms) (.setNumCommunities this num-comms)))))
+    (let [{:keys [options arguments errors summary]} @commandline]
+      (when-let [num-comms (:num-comms options)] (.setNumCommunities this num-comms))))
   (let [^Schedule schedule (.schedule this)
         ^InstanceState instance-state (.instanceState this)
         num-communities  @(.numCommunities instance-state)
