@@ -22,7 +22,7 @@
 ;; Put gen-class Sim first so we can type-hint methods in Indiv etc.
 ;; But put intermit.Sim's methods at end, so we can type-hint references to Indiv, etc. in them.
 (ns intermit.Sim
-  ;(:require [intermit.utils :as u])
+  (:require [clojure.tools.cli :as cli])
   (:import [sim.engine Steppable Schedule]
            [sim.portrayal Oriented2D]
            [sim.util Interval Double2D]
@@ -624,10 +624,28 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sim: reset of class for overall system
+
+;; TODO COMMANDLINE OPTION STUFF DOESN'T WORK
+
+(def cli-options [["-h" "--help" "Print this help"]
+                  ["-n" "--num-comms" "Number of communities"]])
+
+(defn usage [options]
+  (let [fmt-line (fn [[short-opt long-opt desc]] (str short-opt ", " long-opt ": " desc))]
+    (clojure.string/join "\n" (concat (map fmt-line options)))))
+
+(defn error-msg [errors] (str "The following errors occurred while parsing your command:\n\n" (apply str errors)))
+
+(def commandline (atom nil)) ; toplevel var to pass info from main to start. Must be a better way.
+
 (defn -main
   [& args]
-  (sim.engine.SimState/doLoop ^SimState intermit.Sim (into-array String args))
-  (System/exit 0))
+  (let [{:keys [options arguments errors summary :as commline]} (clojure.tools.cli/parse-opts args cli-options)]
+    (reset! commandline commline) ; toplevel var for start() to find. Must be a better way.
+    (when (:help options) (do (println (usage cli-options)) (System/exit 0)))
+    (when errors (do (println (error-msg errors)) (System/exit 1)))
+    (sim.engine.SimState/doLoop intermit.Sim (into-array String args))
+    (System/exit 0)))
 
 ;; doall all sequences below.  They're short, so there's no point in waiting for
 ;; them to get realized who knows where/when, given that the program has mutable state.
@@ -636,6 +654,9 @@
   set of communities, each with a new set of community members."
   [^Sim this]
   (.superStart this)
+  (when commandline
+    (when-let [num-comms (:num-comms commandline)]
+      (.setNumCommunities this num-comms)))
   (let [^Schedule schedule (.schedule this)
         ^InstanceState instance-state (.instanceState this)
         num-communities  @(.numCommunities instance-state)
