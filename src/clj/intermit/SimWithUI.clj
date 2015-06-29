@@ -126,7 +126,7 @@
                                 (proxy-super draw indiv graphics info))))
                           0 1.75 (Color. 255 175 175) OrientedPortrayal2D/SHAPE_LINE) ; color is of orientation line/shape
         soc-edge-portrayal (SimpleEdgePortrayal2D. (Color. 150 150 150) nil)
-        talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 200 225 150 75) nil)]
+        talk-edge-portrayal (SimpleEdgePortrayal2D. (Color. 200 225 150 85) nil)]
     ;; set up node display
     (.clear field)
     (lay/set-indiv-locs! rng
