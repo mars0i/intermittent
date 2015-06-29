@@ -584,6 +584,12 @@
 (def sequential-link-style-idx 1)
 (def both-link-style-idx 2)
 
+(defn link-style-name-to-idx
+  [link-style-name]
+  (let [idx (.indexOf link-style-names link-style-name)]
+    (when (neg? idx) (throw (Exception. (str link-style-name " is not a link style."))))
+    idx))
+
 (defn link-indivs!
   [idx rng prob indivs]
   ((get link-style-fns idx (get link-style-fns initial-link-style-idx)) ; the fallback case works in first run, when the atom contains a nil
@@ -628,35 +634,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sim: reset of class for overall system
 
-;; Var to pass info from main to start.  Must be a better, proper, way.  Really a big kludge.
-;; Note this is a "static" var--it's in the class, so to speak, and not in the instance (i.e. not in instanceState)
-;; but that's OK since its purpose is to be used from main() the first time through.
-;; This may need to be called before a Sim is created, so it can't be part of the Sim's instanceState.
-(def commandline (atom nil))
-
-(defn record-commandline-args!
-  [args]
-  (let [cli-options [["-h" "--help" "Print this help"]
-                     ["-n" "--num-comms <number of communities>" "Number of communities" :parse-fn #(Integer. %)]]
-        usage-fmt (fn [options]
-                    (let [fmt-line (fn [[short-opt long-opt desc]] (str short-opt ", " long-opt ": " desc))]
-                      (clojure.string/join "\n" (concat (map fmt-line options)))))
-        error-fmt (fn [errors] (str "The following errors occurred while parsing your command:\n\n" (apply str errors)))
-        {:keys [options arguments errors summary] :as commline} (clojure.tools.cli/parse-opts args cli-options)]
-    (when (:help options)
-      (println (usage-fmt cli-options))
-      (System/exit 0))
-    (when errors 
-      (println (error-fmt errors))
-      (System/exit 1))
-    (reset! commandline commline))) ; to be read in start method
-
-(defn -main
-  [& args]
-  (record-commandline-args! args) ; store commandline args for later access by start
-  (sim.engine.SimState/doLoop intermit.Sim (into-array String args))
-  (System/exit 0))
-
 (defn report-run-params
   [^Sim sim]
   (let [istate (.instanceState sim)]
@@ -671,6 +648,45 @@
                   @(.successStddev istate)
                   @(.successMean istate))))
 
+;; Var to pass info from main to start.  Must be a better, proper, way.  Really a big kludge.
+;; Note this is a "static" var--it's in the class, so to speak, and not in the instance (i.e. not in instanceState)
+;; but that's OK since its purpose is to be used from main() the first time through.
+;; This may need to be called before a Sim is created, so it can't be part of the Sim's instanceState.
+(def commandline (atom nil))
+
+(defn record-commandline-args!
+  [args]
+  ;; These options should not conflict with MASON's.  Example: If "-h" is the single-char help option, doLoop will never see "-help" (although "-t n" doesn't conflict with "-time") (??).
+  (let [cli-options [["-?" "--help" "Print this help message."]
+                     ["-n" "--number-of-communities <number of communities>" "Number of communities." :parse-fn #(Integer. %)]
+                     ["-i" "--indivs-per-community <number of indivs" "Number of indivs per community." :parse-fn #(Integer. %)]
+                     ["-l" "--link-style {binomial|sequential|both}" (str "Create within-community links with method:\n"
+                                                                          "          binomial: Link indivs randomly using the Erdos-Renyi/binomial/Poisson method.\n"
+                                                                          "          sequential: Link indivs in a sequence, with 2 links per indiv except on ends of sequence.\n"
+                                                                          "          both: Use both methods.") :parse-fn link-style-name-to-idx]
+                     ["-p" "--link-prob <number in [0,1]>" "Probability that each pair of indivs will be linked (for binomial and both)." :parse-fn #(Double. %)]
+                     ["-t" "--tran-stddev <non-negative number>" "Standard deviation of Normally distributed noise in relig transmission." :parse-fn #(Double. %)]
+                    ]
+        usage-fmt (fn [options]
+                    (let [fmt-line (fn [[short-opt long-opt desc]] (str short-opt ", " long-opt ": " desc))]
+                      (clojure.string/join "\n" (concat (map fmt-line options)))))
+        ;error-fmt (fn [errors] (str "The following errors occurred while parsing your command:\n\n" (apply str errors))) ; not in use
+        {:keys [options arguments errors summary] :as commline} (clojure.tools.cli/parse-opts args cli-options)]
+    (when (:help options)
+      (println "Command line options for the Intermittent simulation:")
+      (println (usage-fmt cli-options))
+      (println "Intermittent and MASON options can both be used:")
+      (println "-help (note single dash): Print help message for MASON.")
+      (System/exit 0))
+    ;; Don't exit if there errors conains something; these might be options to be passed to MASON's doLoop().
+    (reset! commandline commline))) ; to be read in start method
+
+(defn -main
+  [& args]
+  (record-commandline-args! args) ; store commandline args for later access by start
+  (sim.engine.SimState/doLoop intermit.Sim (into-array String args))
+  (System/exit 0))
+
 
 ;; doall all sequences below.  They're short, so there's no point in waiting for them to get realized who knows where/when.
 (defn -start
@@ -681,7 +697,12 @@
   ;; If user passed commandline options, use them to set parameters, rather than defaults:
   (when @commandline
     (let [{:keys [options arguments errors summary]} @commandline]
-      (when-let [num-comms (:num-comms options)] (.setNumCommunities this num-comms)))
+      (when-let [newval (:number-of-communities options)] (.setNumCommunities this newval))
+      (when-let [newval (:indivs-per-community options)] (.setMeanIndivsPerCommunity this newval))
+      (when-let [newval (:link-style options)] (.setLinkStyle this newval))
+      (when-let [newval (:link-prob options)] (.setLinkProb this newval))
+      (when-let [newval (:tran-stddev options)] (.setTranStddev this newval))
+      )
     (reset! commandline nil)) ; do the preceding only the first time (a kludge), e.g. not if user has changed params in the gui
   ;; Construct core data structures of the simulation:
   (let [^Schedule schedule (.schedule this)
