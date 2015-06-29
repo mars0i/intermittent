@@ -631,9 +631,10 @@
 ;; Var to pass info from main to start.  Must be a better, proper, way.  Really a big kludge.
 ;; Note this is a "static" var--it's in the class, so to speak, and not in the instance (i.e. not in instanceState)
 ;; but that's OK since its purpose is to be used from main() the first time through.
+;; This may need to be called before a Sim is created, so it can't be part of the Sim's instanceState.
 (def commandline (atom nil))
 
-(defn record-commandline-args 
+(defn record-commandline-args!
   [args]
   (let [cli-options [["-h" "--help" "Print this help"]
                      ["-n" "--num-comms <number of communities>" "Number of communities" :parse-fn #(Integer. %)]]
@@ -652,7 +653,7 @@
 
 (defn -main
   [& args]
-  (record-commandline-args args) ; store commandline args for later access by start
+  (record-commandline-args! args) ; store commandline args for later access by start
   (sim.engine.SimState/doLoop intermit.Sim (into-array String args))
   (System/exit 0))
 
@@ -681,7 +682,7 @@
   (when @commandline
     (let [{:keys [options arguments errors summary]} @commandline]
       (when-let [num-comms (:num-comms options)] (.setNumCommunities this num-comms)))
-    (reset! commandline nil)) ; do the preceding only the first time (what a kludge), e.g. not if user has changed params in the gui
+    (reset! commandline nil)) ; do the preceding only the first time (a kludge), e.g. not if user has changed params in the gui
   ;; Construct core data structures of the simulation:
   (let [^Schedule schedule (.schedule this)
         ^InstanceState instance-state (.instanceState this)
