@@ -1,0 +1,2 @@
+This doesn't work:
+java -cp $HOME/dist/mason/jar/mason19.jar:$HOME/dist/mason/libraries/bsh-2.0b4.jar:$HOME/dist/mason/libraries/itext-1.2.jar:$HOME/dist/mason/libraries/jcommon-1.0.21.jar:$HOME/dist/mason/libraries/jfreechart-1.0.17.jar:$HOME/dist/mason/libraries/jmf.jar:$HOME/dist/mason/libraries/portfolio.jar:$HOME/.m2/repository/org/clojure/clojure/1.7.0-RC2/clojure-1.7.0-RC2.jar:target/intermittent-0.1.0-SNAPSHOT.jar intermit.Sim
