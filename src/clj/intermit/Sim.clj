@@ -655,6 +655,7 @@
 (def commandline (atom nil))
 
 (defn record-commandline-args!
+  "Temporarily store values of parameters passed on the command line."
   [args]
   ;; These options should not conflict with MASON's.  Example: If "-h" is the single-char help option, doLoop will never see "-help" (although "-t n" doesn't conflict with "-time") (??).
   (let [cli-options [["-?" "--help" "Print this help message."]
@@ -666,7 +667,8 @@
                                                                           "          both: Use both methods.") :parse-fn link-style-name-to-idx]
                      ["-p" "--link-prob <number in [0,1]>" "Probability that each pair of indivs will be linked (for binomial and both)." :parse-fn #(Double. %)]
                      ["-t" "--tran-stddev <non-negative number>" "Standard deviation of Normally distributed noise in relig transmission." :parse-fn #(Double. %)]
-                    ]
+                     ["-g" "--global-interloc-mean <non-negative number>" "Mean number of Poisson-distributed interlocutors from entire population" :parse-fn #(Double. %)]
+                     ["-s" "--success-stddev <non-negative number>" "Standard deviation of Normally distributed noise in success calculation" :parse-fn #(Double. %)]]
         usage-fmt (fn [options]
                     (let [fmt-line (fn [[short-opt long-opt desc]] (str short-opt ", " long-opt ": " desc))]
                       (clojure.string/join "\n" (concat (map fmt-line options)))))
@@ -679,11 +681,23 @@
       (println "-help (note single dash): Print help message for MASON.")
       (System/exit 0))
     ;; Don't exit if there errors conains something; these might be options to be passed to MASON's doLoop().
-    (reset! commandline commline))) ; to be read in start method
+
+(defn set-instance-state-from-commandline!
+  "Set fields in the Sim's instanceState from parameters passed on the command line."
+  [^Sim sim commline]
+  (let [{:keys [options arguments errors summary]} @commline]
+    (when-let [newval (:number-of-communities options)] (.setNumCommunities sim newval))
+    (when-let [newval (:indivs-per-community options)] (.setMeanIndivsPerCommunity sim newval))
+    (when-let [newval (:link-style options)] (.setLinkStyle sim newval))
+    (when-let [newval (:link-prob options)] (.setLinkProb sim newval))
+    (when-let [newval (:tran-stddev options)] (.setTranStddev sim newval))
+    (when-let [newval (:global-interloc-mean options)] (.setGlobalInterlocMean sim newval))
+    (when-let [newval (:success-stddev options)] (.setSuccessStddev sim newval))))
+    (reset! commandline commline))) ; clear it so user can set params in the gui
 
 (defn -main
   [& args]
-  (record-commandline-args! args) ; store commandline args for later access by start
+  (record-commandline-args! args) ; The Sim isn't available yet, so store commandline args for later access by start().
   (sim.engine.SimState/doLoop intermit.Sim (into-array String args))
   (System/exit 0))
 
@@ -696,13 +710,7 @@
   (.superStart this)
   ;; If user passed commandline options, use them to set parameters, rather than defaults:
   (when @commandline
-    (let [{:keys [options arguments errors summary]} @commandline]
-      (when-let [newval (:number-of-communities options)] (.setNumCommunities this newval))
-      (when-let [newval (:indivs-per-community options)] (.setMeanIndivsPerCommunity this newval))
-      (when-let [newval (:link-style options)] (.setLinkStyle this newval))
-      (when-let [newval (:link-prob options)] (.setLinkProb this newval))
-      (when-let [newval (:tran-stddev options)] (.setTranStddev this newval))
-      )
+    (set-instance-state-from-commandline! this commandline)
     (reset! commandline nil)) ; do the preceding only the first time (a kludge), e.g. not if user has changed params in the gui
   ;; Construct core data structures of the simulation:
   (let [^Schedule schedule (.schedule this)
