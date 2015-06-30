@@ -76,9 +76,10 @@
 
 (defn -main
   [& args]
-  (s/record-commandline-args! args) 
-  (let [vid (intermit.SimWithUI. (intermit.Sim. (System/currentTimeMillis)))]
-    (.setVisible (Console. vid) true)))
+  (let [sim (intermit.Sim. (System/currentTimeMillis))]
+    (s/record-commandline-args! args) 
+    (when @s/commandline (s/set-instance-state-from-commandline! sim s/commandline))
+    (.setVisible (Console. (intermit.SimWithUI. sim)) true)))
 
 (defn -getName [this] "Intermittent") ; override method in super
 
