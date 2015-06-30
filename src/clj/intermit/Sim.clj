@@ -37,8 +37,10 @@
               :exposes-methods {start superStart}                  ; alias method start() in superclass. (Don't name it 'super-start'; use a Java name.)
               :methods [[getNumCommunities [] long]                ; these methods are defined much further down
                         [setNumCommunities [long] void]
+                        [domNumCommunities [] java.lang.Object]
                         [getMeanIndivsPerCommunity [] long]
                         [setMeanIndivsPerCommunity [long] void]
+                        [domMeanIndivsPerCommunity [] java.lang.Object]
                         [getLinkProb [] double]
                         [setLinkProb [double] void]
                         [domLinkProb [] java.lang.Object]
@@ -47,7 +49,7 @@
                         [domTranStddev [] java.lang.Object]
                         [getGlobalInterlocMean [] double]     ; i.e. mean # of interlocutors from global population
                         [setGlobalInterlocMean [double] void]
-                        ;[domGlobalInterlocMean [] java.lang.Object]
+                        [domGlobalInterlocMean [] java.lang.Object]
                         [getSuccessStddev [] double]
                         [setSuccessStddev [double] void]
                         [domSuccessStddev [] java.lang.Object]
@@ -83,6 +85,12 @@
 (def initial-success-mean 0.0)
 (def initial-link-style-idx 1) ; This is an index into link-style-names and link-style-fns, defined below.
 ;; (We can't put link-style-fns here; eval'ing them at this point produces nothing.)
+
+(def slider-max-num-communities 50)
+(def slider-max-mean-indivs-per-community 50)
+(def slider-max-tran-stddev 3.0)
+(def slider-max-global-interloc-mean 1.0)
+(def slider-max-success-stddev 3.0)
 
 (defn remove-if-identical
   "Removes from coll any object that's identical to obj."
@@ -130,26 +138,29 @@
                           (atom [])    ; meanReligSeries
                           (atom []))]) ; meanSuccessSeries
 
+;; NOTE The numeric -domXY fns set limits for sliders BUT DON'T RESTRICT VALUES TO THAT RANGE.  You can type in values outside the range, and they'll get used.
 (defn -getNumCommunities ^long [^Sim this] @(.numCommunities ^InstanceState (.instanceState this)))
 (defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities ^InstanceState (.instanceState this)) newval))
+(defn -domNumCommunities [this] (Interval. 1 slider-max-num-communities))
 (defn -getMeanIndivsPerCommunity ^long [^Sim this] @(.meanIndivsPerCommunity ^InstanceState (.instanceState this)))
 (defn -setMeanIndivsPerCommunity [^Sim this ^long newval] (reset! (.meanIndivsPerCommunity ^InstanceState (.instanceState this)) newval))
+(defn -domMeanIndivsPerCommunity [this] (Interval. 1 slider-max-mean-indivs-per-community))
 (defn -getLinkProb ^double [^Sim this] @(.linkProb ^InstanceState (.instanceState this)))
 (defn -setLinkProb [^Sim this ^double newval] (reset! (.linkProb ^InstanceState (.instanceState this)) newval))
 (defn -domLinkProb [this] (Interval. 0.0 1.0))
 (defn -getTranStddev ^double [^Sim this] @(.tranStddev ^InstanceState (.instanceState this)))
 (defn -setTranStddev [^Sim this ^double newval] (reset! (.tranStddev ^InstanceState (.instanceState this)) newval))
-(defn -domTranStddev [this] (Interval. 0.0 1.0))
+(defn -domTranStddev [this] (Interval. 0.0 slider-max-tran-stddev))
 (defn -getGlobalInterlocMean ^double [^Sim this] @(.globalInterlocMean ^InstanceState (.instanceState this)))
 (defn -setGlobalInterlocMean [^Sim this ^double newval] 
   (let [^InstanceState istate (.instanceState this)]
     (reset! (.globalInterlocMean istate) newval)    ; store it so that UI can display its current value
     (when-let [^Poisson poisson @(.poisson istate)] ; avoid npe: poisson isn't created until start is run (at which point it will be init'ed with value of globalInterlocMean)
       (.setMean poisson newval))))                  ; allows changing value during the middle of a run.
-;(defn -domGlobalInterlocMean [this] (Interval. 0.0 20.0)) ; a mean for a Poisson distribution.  Should go high enough to guarantee that everyone talks to everyone, but large numbers choke the app.
+(defn -domGlobalInterlocMean [this] (Interval. 0.0 slider-max-global-interloc-mean)) ; Poisson dist mean: how many indivs each person talks to from entire pop (including neighbors).
 (defn -getSuccessStddev ^double [^Sim this] @(.successStddev ^InstanceState (.instanceState this)))
 (defn -setSuccessStddev [^Sim this ^double newval] (reset! (.successStddev ^InstanceState (.instanceState this)) newval))
-(defn -domSuccessStddev [this] (Interval. 0.0 3.0))
+(defn -domSuccessStddev [this] (Interval. 0.0 slider-max-success-stddev))
 (defn -getSuccessMean ^double [^Sim this] @(.successMean ^InstanceState (.instanceState this)))
 (defn -setSuccessMean [^Sim this ^double newval] (reset! (.successMean ^InstanceState (.instanceState this)) newval))
 (defn -domSuccessMean [this] (Interval. -1.0 1.0)) 
