@@ -38,9 +38,9 @@
               :methods [[getNumCommunities [] long]                ; these methods are defined much further down
                         [setNumCommunities [long] void]
                         [domNumCommunities [] java.lang.Object]
-                        [getMeanIndivsPerCommunity [] long]
-                        [setMeanIndivsPerCommunity [long] void]
-                        [domMeanIndivsPerCommunity [] java.lang.Object]
+                        [getIndivsPerCommunity [] long]
+                        [setIndivsPerCommunity [long] void]
+                        [domIndivsPerCommunity [] java.lang.Object]
                         [getLinkProb [] double]
                         [setLinkProb [double] void]
                         [domLinkProb [] java.lang.Object]
@@ -77,7 +77,7 @@
          link-style-names link-style-idxs binomial-link-style-idx sequential-link-style-idx both-link-style-idx)
 
 (def initial-num-communities 12) ; use something that factors into x and y dimensions
-(def initial-mean-indivs-per-community 15)
+(def initial-indivs-per-community 15)
 (def initial-link-prob 0.20)
 (def initial-tran-stddev 0.03)
 (def initial-global-interloc-mean 0.01)     ; i.e. Poisson-mean interlocutors from global population
@@ -87,7 +87,7 @@
 ;; (We can't put link-style-fns here; eval'ing them at this point produces nothing.)
 
 (def slider-max-num-communities 50)
-(def slider-max-mean-indivs-per-community 50)
+(def slider-max-indivs-per-community 50)
 (def slider-max-tran-stddev 3.0)
 (def slider-max-global-interloc-mean 1.0)
 (def slider-max-success-stddev 3.0)
@@ -104,8 +104,8 @@
 
 ;; Note some of these have to be atoms so that that we can allow restarting with a different setup.
 (deftype InstanceState [; run parameters:
-                        numCommunities          ; number of communities
-                        meanIndivsPerCommunity  ; mean or exact number of indivs in each
+                        numCommunities      ; number of communities
+                        indivsPerCommunity  ; exact number of indivs in each
                         linkStyleIdx ; see sect 3.4.2, "MASON Extensions",  of MASON manual v. 19
                         linkProb
                         tranStddev
@@ -124,7 +124,7 @@
   "Initializes instance-state when an instance of class Sim is created."
   [seed]
   [[seed] (InstanceState. (atom initial-num-communities)
-                          (atom initial-mean-indivs-per-community) 
+                          (atom initial-indivs-per-community) 
                           (atom initial-link-style-idx)
                           (atom initial-link-prob)
                           (atom initial-tran-stddev)
@@ -142,9 +142,9 @@
 (defn -getNumCommunities ^long [^Sim this] @(.numCommunities ^InstanceState (.instanceState this)))
 (defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities ^InstanceState (.instanceState this)) newval))
 (defn -domNumCommunities [this] (Interval. 1 slider-max-num-communities))
-(defn -getMeanIndivsPerCommunity ^long [^Sim this] @(.meanIndivsPerCommunity ^InstanceState (.instanceState this)))
-(defn -setMeanIndivsPerCommunity [^Sim this ^long newval] (reset! (.meanIndivsPerCommunity ^InstanceState (.instanceState this)) newval))
-(defn -domMeanIndivsPerCommunity [this] (Interval. 1 slider-max-mean-indivs-per-community))
+(defn -getIndivsPerCommunity ^long [^Sim this] @(.indivsPerCommunity ^InstanceState (.instanceState this)))
+(defn -setIndivsPerCommunity [^Sim this ^long newval] (reset! (.indivsPerCommunity ^InstanceState (.instanceState this)) newval))
+(defn -domIndivsPerCommunity [this] (Interval. 1 slider-max-indivs-per-community))
 (defn -getLinkProb ^double [^Sim this] @(.linkProb ^InstanceState (.instanceState this)))
 (defn -setLinkProb [^Sim this ^double newval] (reset! (.linkProb ^InstanceState (.instanceState this)) newval))
 (defn -domLinkProb [this] (Interval. 0.0 1.0))
@@ -651,7 +651,7 @@
     (pp/cl-format true
                   "~ax~a indivs, link style = ~a, link prob (if relevant) = ~a, tran stddev = ~a, global interlocutor mean = ~a, success stddev = ~a, success mean = ~a~%"
                   @(.numCommunities istate)
-                  @(.meanIndivsPerCommunity istate)
+                  @(.indivsPerCommunity istate)
                   (link-style-names @(.linkStyleIdx istate))
                   @(.linkProb istate)
                   @(.tranStddev istate)
@@ -698,7 +698,7 @@
   [^Sim sim commline]
   (let [{:keys [options arguments errors summary]} @commline]
     (when-let [newval (:number-of-communities options)] (.setNumCommunities sim newval))
-    (when-let [newval (:indivs-per-community options)] (.setMeanIndivsPerCommunity sim newval))
+    (when-let [newval (:indivs-per-community options)] (.setIndivsPerCommunity sim newval))
     (when-let [newval (:link-style options)] (.setLinkStyle sim newval))
     (when-let [newval (:link-prob options)] (.setLinkProb sim newval))
     (when-let [newval (:tran-stddev options)] (.setTranStddev sim newval))
@@ -727,7 +727,7 @@
   (let [^Schedule schedule (.schedule this)
         ^InstanceState instance-state (.instanceState this)
         num-communities  @(.numCommunities instance-state)
-        indivs-per-community @(.meanIndivsPerCommunity instance-state)
+        indivs-per-community @(.indivsPerCommunity instance-state)
         communities (vec (repeatedly num-communities
                                      #(make-community-of-indivs this indivs-per-community)))
         population (make-communities-into-pop! communities)
