@@ -13,6 +13,7 @@
   :dependencies [[org.clojure/clojure "1.7.0"]
                  [org.clojure/math.numeric-tower "0.0.4"]
                  [org.clojure/tools.cli "0.3.1"]
+                 [org.clojure/data.csv "0.1.2"]
                  ;[incanter/incanter "1.5.6"]
                  [org.jfree/jcommon "1.0.21"]    ;"mason/libraries/jcommon-1.0.21.jar"
                  [org.jfree/jfreechart "1.0.17"] ;"mason/libraries/jfreechart-1.0.17.jar"
