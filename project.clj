@@ -10,7 +10,7 @@
                    ~(str (System/getenv "HOME") "/dist/mason/" "libraries/portfolio.jar")]
   ;:warn-on-reflection true
   ;:java-source-paths ["src/java"]
-  :dependencies [[org.clojure/clojure "1.7.0-RC2"]
+  :dependencies [[org.clojure/clojure "1.7.0"]
                  [org.clojure/math.numeric-tower "0.0.4"]
                  [org.clojure/tools.cli "0.3.1"]
                  ;[incanter/incanter "1.5.6"]
