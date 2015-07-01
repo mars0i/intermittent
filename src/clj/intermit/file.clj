@@ -5,13 +5,14 @@
 ;(set! *warn-on-reflection* true)
 
 (ns intermit.file
-  (:require ;[intermit.Sim :as s]
-            [clojure.data.csv :as csv]
+  (:require [clojure.data.csv :as csv]
             [clojure.java.io :as io])
-  (:import [sim.util Double2D])
-  )
+  (:import [sim.util Double2D]))
 
 (defn double2d-coll-to-y-rows
+  "Given a sequence of Double2D's, returns a vector in which each
+  element is a vector containing the y value of the Double2D that is
+  the corresponding of the original sequence."
   [double2d-coll]
   (map #(vector (.y ^Double2D %)) double2d-coll))
 
@@ -23,6 +24,11 @@
      (csv/write-csv w rows)))
 
 (defn spit-ys
-  [f double2d-coll]
-  (spit-csv f
-            (double2d-coll-to-y-rows double2d-coll)))
+  "Given a file name and a sequence of Double2D's, the y values of the Double2D's,
+  one in each row.  options are options to clojure.java.io.writer.  For example,
+  to append to an existing file, add :append true after the sequence."
+  [f double2d-coll & options]
+  (apply spit-csv 
+         f 
+         (double2d-coll-to-y-rows double2d-coll) 
+         options))
