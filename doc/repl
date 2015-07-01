@@ -1,0 +1,12 @@
+Notes on testing at the repl
+
+To test data structures:
+(def s (Sim. 42))
+(.start s)
+
+To run:
+(sim.engine.SimState/doLoop intermit.Sim (into-array String []))
+
+
+
+
