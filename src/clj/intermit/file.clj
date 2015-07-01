@@ -10,11 +10,22 @@
   (:import [sim.util Double2D]))
 
 (defn double2d-coll-to-y-rows
-  "Given a sequence of Double2D's, returns a vector in which each
+  "Given a sequence of Double2D's, returns a sequence in which each
   element is a vector containing the y value of the Double2D that is
   the corresponding of the original sequence."
   [double2d-coll]
   (map #(vector (.y ^Double2D %)) double2d-coll))
+
+(defn double2d-colls-to-y-rows
+  "Given a sequence of sequences of Double2D's, returns a uencevector in which each
+  element is a vector containing the y values of the Double2D at each location
+  in each of the top-level sequences."
+  [& double2d-colls]
+  (apply map 
+         (fn [& double2ds]
+           (vec (map #(.y %)
+                     double2ds)))
+         double2d-colls))
 
 (defn spit-csv
   "Given a sequence of sequences of data, opens a file and writes to it
