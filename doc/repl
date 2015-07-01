@@ -7,6 +7,20 @@ To test data structures:
 To run:
 (sim.engine.SimState/doLoop intermit.Sim (into-array String []))
 
+or:
+(intermit.SimWithUI/main (into-array String []))
 
+or:
+(def s (Sim. 42))
+(.setVisible (sim.display.Console. (intermit.SimWithUI. s)) true)
+
+
+then you can do things like this:
+
+(vec (.getMeanReligTimeSeries s))
+
+(require 'intermit.file)
+(intermit.file/spit-ys "foo.csv" (.getMeanReligTimeSeries s) :append true)
+(reset! (.meanReligSeries (.instanceState s)) [])
 
 
