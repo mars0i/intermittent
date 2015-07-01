@@ -7,7 +7,6 @@
 
 (ns intermit.layout
   (:require [clojure.math.numeric-tower :as m]
-            [intermit.utils :as u]
             [intermit.Sim :as s])
   (:import [sim.util Double2D]))
 
