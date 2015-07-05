@@ -302,12 +302,31 @@
 
 ;;; Runtime functions:
 
-(defn sum-relig
-  "Sum the relig values of indivs along with initial value init-value.
-  Suitable for use with reduce."
-  [^double init-value indivs]
-  (let [add-relig (fn [^double acc ^Indiv indiv] (+ acc ^double (getRelig indiv)))]
-    (reduce add-relig init-value indivs)))
+(defn add-relig 
+  "Add's indiv's relig value to acc.  Designed for use with reduce."
+  [^double acc ^Indiv indiv]
+  (+ acc ^double (getRelig indiv)))
+
+(defn add-success 
+  "Add's indiv's success value to acc.  Designed for use with reduce."
+  [^double acc ^Indiv indiv]
+  (+ acc ^double (getSuccess indiv)))
+
+(def sum-relig
+  "Given a double initial value and a collection of indivs, sums the relig 
+  values of indivs along with initial value.  Suitable for use with reduce."
+  (partial reduce add-relig))
+
+; old version of sum-relig:
+; (def sum-relig
+;  [^double init-value indivs]
+;  (let [add-relig (fn [^double acc ^Indiv indiv] (+ acc ^double (getRelig indiv)))]
+;    (reduce add-relig init-value indivs)))
+
+(def sum-success
+  "Given a double initial value and a collection of indivs, sums the success 
+  values of indivs along with initial value.  Suitable for use with reduce."
+  (partial reduce add-success))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -653,11 +672,11 @@
   [^Sim sim]
   (let [^Schedule schedule (.schedule sim)
         ^InstanceState istate (.instanceState sim)
-        population @(.population istate)]
-    (swap! (.meanReligSeries istate)
-           conj (Double2D. (double (.getSteps schedule)) ; coercion will happen automatically; I made it explicit. (getTime incorrect if funny scheduling.)
-                           (/ (sum-relig 0.0 population)
-                              (count population))))))
+        population @(.population istate)
+        pop-size (count population)
+        tick (double (.getSteps schedule))] ; coercion will happen automatically; I made it explicit. (getTime incorrect if funny scheduling.)
+    (swap! (.meanReligSeries istate) conj (Double2D. tick (/ (sum-relig 0.0 population) pop-size)))
+    (swap! (.meanSuccessSeries istate) conj (Double2D. tick (/ (sum-success 0.0 population) pop-size)))))
 
 (defn report-run-params
   [^Sim sim]
