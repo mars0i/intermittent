@@ -233,8 +233,8 @@
   (get-prev-speaker [this])
   (add-neighbor! [this newval])
   (set-restofpop! [this newval])
-  (update-relig! [this])
   (copy-relig! [this sim])
+  (update-relig! [this])
   (update-success! [this sim]))
 
 (defprotocol CommunityP
@@ -268,9 +268,6 @@
     (get-prev-speaker [this] prevspeaker)
     (add-neighbor! [this new-neighbor] (set! neighbors (conj neighbors new-neighbor)))
     (set-restofpop! [this indivs] (set! restofpop indivs))
-    (update-relig! [this]
-      "Copy newrelig to relig."
-      (set! relig newrelig))
     (copy-relig! [this sim-state]
       "If there is a neighbor or other interlocutor who is more successful
       than I am, copy the relig value of the best such neighbor into my newrelig."
@@ -288,6 +285,9 @@
           (when (> (getSuccess best-model) success)     ; is most successful other, better than me?
             (set! newrelig (add-noise gaussian 0.0 stddev (getRelig best-model)))
             (set! prevspeaker best-model)))))
+    (update-relig! [this]
+      "Copy newrelig to relig."
+      (set! relig newrelig)) ; note that relig may be unchanged; then this is wasted computation
     (update-success! [this sim-state]
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
             ^InstanceState istate (.instanceState sim)
@@ -545,14 +545,16 @@
 (defn make-indiv
   "Make an indiv with appropriate defaults."
   [sim-state]
-  (Indiv.
-    (str (gensym "i"))                 ; id
-    (.nextDouble (.random sim-state))  ; success
-    (.nextDouble (.random sim-state))  ; relig
-    nil                                ; newrelig: placeholder until first step
-    []                                 ; neighbors
-    []                                 ; restofpop
-    nil))                              ; prevspeaker
+  (let [relig   (.nextDouble (.random sim-state))
+        success (.nextDouble (.random sim-state))]
+    (Indiv.
+      (str (gensym "i"))  ; id
+      success             ; success
+      relig               ; relig
+      relig               ; newrelig (need to repeat value so it's there until relig gets a new value from someone else)
+      []                  ; neighbors
+      []                  ; restofpop
+      nil)))               ; prevspeaker
 
 
 (defn binomial-link-indivs!
@@ -648,11 +650,10 @@
 
 (defn collect-data
   "Record per-tick data."
-  [sim]
-  (let [population (.population sim)
-        ^Schedule schedule (.schedule sim)
+  [^Sim sim]
+  (let [^Schedule schedule (.schedule sim)
         ^InstanceState istate (.instanceState sim)
-        population (.population sim)]
+        population @(.population istate)]
     (swap! (.meanReligSeries istate)
            conj (Double2D. (double (.getSteps schedule)) ; coercion will happen automatically; I made it explicit. (getTime incorrect if funny scheduling.)
                            (/ (sum-relig 0.0 population)
@@ -756,7 +757,7 @@
                             (let [^Sim sim sim-state
                                   ^InstanceState istate (.instanceState sim)]
                               (doseq [^Indiv indiv population] (copy-relig! indiv sim))      ; first communicate relig (to newrelig's)
-                              (doseq [^Indiv indiv population] (update-relig! indiv))         ; then copy newrelig to relig ("parallel" update)
+                              (doseq [^Indiv indiv population] (update-relig! indiv))        ; then copy newrelig to relig ("parallel" update)
                               (doseq [^Indiv indiv population] (update-success! indiv sim))  ; update each indiv's success field (uses relig)
-                              (collect-data this))))))
+                              (collect-data sim))))))
   (report-run-params this)) ; At beginning of run, tell user what parameters we're using
