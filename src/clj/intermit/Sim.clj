@@ -10,10 +10,9 @@
 ;; in the GUIState class (SimWithGUI), where they're needed to be used by portrayals.
 
 ;; IN THIS VERSION:
-;; * There is a step function in each agent, i.e. Indiv implements Steppable.
-;; * The scheduler calls the agents' (indivs') step functions in random order on each timestep.
-;; * Indivs update their states sequentially in this random order, rather than updating in
-;;   parallel by updating a "new" version of a variable from others "old" versions.
+;; * There is NOT a step function in each agent
+;; * Indivs update their states update "in parallel" by updating a 
+;; "new" version of a variable from others "old" versions.
 
 ;; Tip: Methods named "getBlahBlah" or "setBlahBlah" will be found by the UI via reflection.
 
@@ -233,8 +232,9 @@
   (get-prev-speaker [this])
   (add-neighbor! [this newval])
   (set-restofpop! [this newval])
-  (update-success! [this sim])
-  (copy-relig! [this sim population]))
+  (update-relig! [this])
+  (copy-relig! [this sim])
+  (update-success! [this sim]))
 
 (defprotocol CommunityP
   (get-members [this]))
@@ -254,6 +254,7 @@
 (deftype Indiv [id
                 ^:volatile-mutable success 
                 ^:volatile-mutable relig 
+                ^:volatile-mutable newrelig
                 ^:volatile-mutable neighbors 
                 ^:volatile-mutable restofpop
                 ^:volatile-mutable prevspeaker]
@@ -266,7 +267,12 @@
     (get-prev-speaker [this] prevspeaker)
     (add-neighbor! [this new-neighbor] (set! neighbors (conj neighbors new-neighbor)))
     (set-restofpop! [this indivs] (set! restofpop indivs))
-    (copy-relig! [this sim-state population]
+    (update-relig! [this]
+      "Copy newrelig to relig."
+      (set! relig newrelig))
+    (copy-relig! [this sim-state]
+      "If there is a neighbor or other interlocutor who is more successful
+      than I am, copy the relig value of the best such neighbor into my newrelig."
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
             ^MersenneTwisterFast rng (.random sim)
             ^InstanceState istate (.instanceState sim)
@@ -279,7 +285,7 @@
                                        (into neighbors ;   (a) neighbors, (b) 0 or more random indivs from entire pop
                                              (choose-others-from-pop rng poisson this)))]
           (when (> (getSuccess best-model) success)     ; is most successful other, better than me?
-            (set! relig (add-noise gaussian 0.0 stddev (getRelig best-model)))
+            (set! newrelig (add-noise gaussian 0.0 stddev (getRelig best-model)))
             (set! prevspeaker best-model)))))
     (update-success! [this sim-state]
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
@@ -288,13 +294,6 @@
             ^double stddev @(.successStddev istate)
             ^double mean @(.successMean istate)]
         (set! success (add-noise gaussian mean stddev (calc-success relig neighbors)))))
-  Steppable
-    ;; Note that by maintaining only a single version of vars, and allowing each indiv to be stepped in random order, we allow per-tick path dependencies.
-    (step [this sim-state] 
-      (let [^intermit.Sim sim sim-state  ; kludge to cast to my class--can't put it in signature
-            ^intermit.Sim.InstanceState istate (.instanceState sim)
-            population @(.population istate)]
-       (copy-relig! this sim @(.population istate)))) 
   Oriented2D ; display pointer in GUI
     (orientation2D [this] (+ (/ Math/PI 2) (* Math/PI success))) ; pointer goes from down (=0) to up (=1)
   Object
@@ -546,12 +545,13 @@
   "Make an indiv with appropriate defaults."
   [sim-state]
   (Indiv.
-    (str (gensym "i")) ; id
+    (str (gensym "i"))                 ; id
     (.nextDouble (.random sim-state))  ; success
     (.nextDouble (.random sim-state))  ; relig
-    []   ; neighbors
-    []   ; restofpop
-    nil))  ; prevspeaker
+    nil                                ; newrelig: placeholder until first step
+    []                                 ; neighbors
+    []                                 ; restofpop
+    nil))                              ; prevspeaker
 
 
 (defn binomial-link-indivs!
@@ -645,6 +645,18 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sim: reset of class for overall system
 
+(defn collect-data
+  "Record per-tick data."
+  [sim]
+  (let [population (.population sim)
+        ^Schedule schedule (.schedule this)
+        ^InstanceState istate (.instanceState sim)
+        population (.population sim)]
+    (swap! (.meanReligSeries istate)
+           conj (Double2D. (double (.getSteps schedule)) ; coercion will happen automatically; I made it explicit. (getTime incorrect if funny scheduling.)
+                           (/ (sum-relig 0.0 population)
+                              (count population))))))
+
 (defn report-run-params
   [^Sim sim]
   (let [istate (.instanceState sim)]
@@ -712,7 +724,6 @@
   (sim.engine.SimState/doLoop intermit.Sim (into-array String args))
   (System/exit 0))
 
-
 ;; doall all sequences below.  They're short, so there's no point in waiting for them to get realized who knows where/when.
 (defn -start
   "Function called to (re)start a new simulation run.  Initializes a new
@@ -725,30 +736,26 @@
     (reset! commandline nil)) ; do the preceding only the first time (a kludge), e.g. not if user has changed params in the gui
   ;; Construct core data structures of the simulation:
   (let [^Schedule schedule (.schedule this)
-        ^InstanceState instance-state (.instanceState this)
-        num-communities  @(.numCommunities instance-state)
-        indivs-per-community @(.indivsPerCommunity instance-state)
+        ^InstanceState istate (.instanceState this)
+        num-communities  @(.numCommunities istate)
+        indivs-per-community @(.indivsPerCommunity istate)
         communities (vec (repeatedly num-communities
                                      #(make-community-of-indivs this indivs-per-community)))
         population (make-communities-into-pop! communities)
-        meanReligSeriesAtom (.meanReligSeries instance-state)]
+        meanReligSeriesAtom (.meanReligSeries istate)]
     ;; Record core data structures and utility states:
-    (reset! (.poisson instance-state) (Poisson. @(.globalInterlocMean instance-state) (.random this)))
-    (reset! (.gaussian instance-state) (Normal. 0.0 1.0 (.random this))) ; mean and sd here can be overridden later
-    (reset! (.communities instance-state) communities)
-    (reset! (.population instance-state) population)
-    (reset! meanReligSeriesAtom [])
-    ;; Schedule each indiv's step function:
-    (doseq [indiv population] (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))  ; indivs' step fns run first to communicate relig
-    ;; Schedule a step to update each indiv's success field:
-    (.scheduleRepeating schedule Schedule/EPOCH 1                                    ; then update success fields afterwards
+    (reset! (.poisson istate) (Poisson. @(.globalInterlocMean istate) (.random this)))
+    (reset! (.gaussian istate) (Normal. 0.0 1.0 (.random this))) ; mean and sd here can be overridden later
+    (reset! (.communities istate) communities)
+    (reset! (.population istate) population)
+    (reset! (.meanReligSeries istate) [])
+    ;; Schedule per-tick step function(s):
+    (.scheduleRepeating schedule Schedule/EPOCH 0
                         (reify Steppable 
-                          (step [this sim-state]
-                            (doseq [^Indiv indiv population] (update-success! indiv sim-state))
-                            (swap! meanReligSeriesAtom
-                                   conj 
-                                   (Double2D.
-                                     (double (.getSteps schedule)) ; coercion will happen automatically; I made it explicit. (getTime incorrect if funny scheduling.)
-                                     (/ (sum-relig 0.0 population)
-                                        (count population))))))))
-  (report-run-params this))
+                          (step [this sim-state] ; the two args are actually the same thing here (#1 is a Steppable, #2 is a SimState)
+                            (let [^intermit.Sim.InstanceState istate (.instanceState ^Sim this)]
+                              (doseq [^Indiv indiv population] (copy-relig! indiv this))      ; first communicate relig (to newrelig's)
+                              (doseq [^Indiv indiv population] (update-relig! indiv))         ; then copy newrelig to relig ("parallel" update)
+                              (doseq [^Indiv indiv population] (update-success! indiv this))  ; update each indiv's success field (uses relig)
+                              (collect-data this))))))
+  (report-run-params this)) ; At beginning of run, tell user what parameters we're using
