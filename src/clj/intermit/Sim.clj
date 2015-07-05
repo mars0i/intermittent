@@ -2,17 +2,18 @@
 ;;; is distributed under the Gnu General Public License version 3.0 as
 ;;; specified in the file LICENSE.
 
+;; IN THIS VERSION:
+;; * There is NOT a step function in each agent.
+;; * There is a single step function for the entire simulation.
+;; * Indivs update their states update "in parallel" by updating a "new" 
+;;   version of a variable from others "old" versions.
+
 ;; Note: Traditional MASON models put e.g. Continuous2D and Network here, 
 ;; and then the GUIState class would normally use those instances from 
 ;; this class, passing them to portrayals created in the GUIState class.
 ;; Since the underlying model doesn't need spatial relations or explicit
 ;; link representations, I only create the Continuous2D and Network objects
 ;; in the GUIState class (SimWithGUI), where they're needed to be used by portrayals.
-
-;; IN THIS VERSION:
-;; * There is NOT a step function in each agent
-;; * Indivs update their states update "in parallel" by updating a 
-;; "new" version of a variable from others "old" versions.
 
 ;; Tip: Methods named "getBlahBlah" or "setBlahBlah" will be found by the UI via reflection.
 
@@ -649,7 +650,7 @@
   "Record per-tick data."
   [sim]
   (let [population (.population sim)
-        ^Schedule schedule (.schedule this)
+        ^Schedule schedule (.schedule sim)
         ^InstanceState istate (.instanceState sim)
         population (.population sim)]
     (swap! (.meanReligSeries istate)
@@ -751,10 +752,11 @@
     ;; Schedule per-tick step function(s):
     (.scheduleRepeating schedule Schedule/EPOCH 0
                         (reify Steppable 
-                          (step [this sim-state] ; the two args are actually the same thing here (#1 is a Steppable, #2 is a SimState)
-                            (let [^intermit.Sim.InstanceState istate (.instanceState ^Sim this)]
-                              (doseq [^Indiv indiv population] (copy-relig! indiv this))      ; first communicate relig (to newrelig's)
+                          (step [this sim-state]
+                            (let [^Sim sim sim-state
+                                  ^InstanceState istate (.instanceState sim)]
+                              (doseq [^Indiv indiv population] (copy-relig! indiv sim))      ; first communicate relig (to newrelig's)
                               (doseq [^Indiv indiv population] (update-relig! indiv))         ; then copy newrelig to relig ("parallel" update)
-                              (doseq [^Indiv indiv population] (update-success! indiv this))  ; update each indiv's success field (uses relig)
+                              (doseq [^Indiv indiv population] (update-success! indiv sim))  ; update each indiv's success field (uses relig)
                               (collect-data this))))))
   (report-run-params this)) ; At beginning of run, tell user what parameters we're using
