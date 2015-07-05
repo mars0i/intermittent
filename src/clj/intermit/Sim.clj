@@ -675,7 +675,7 @@
         population @(.population istate)
         pop-size (count population)
         tick (double (.getSteps schedule))] ; coercion will happen automatically; I made it explicit. (getTime incorrect if funny scheduling.)
-    (swap! (.meanReligSeries istate) conj (Double2D. tick (/ (sum-relig 0.0 population) pop-size)))
+    (swap! (.meanReligSeries istate)   conj (Double2D. tick (/ (sum-relig 0.0 population) pop-size)))
     (swap! (.meanSuccessSeries istate) conj (Double2D. tick (/ (sum-success 0.0 population) pop-size)))))
 
 (defn report-run-params
