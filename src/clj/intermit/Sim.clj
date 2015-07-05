@@ -702,8 +702,7 @@
       (println (usage-fmt cli-options))
       (println "Intermittent and MASON options can both be used:")
       (println "-help (note single dash): Print help message for MASON.")
-      (System/exit 0))
-    ;; Don't exit if there errors conains something; these might be options to be passed to MASON's doLoop().
+      (System/exit 0))))
 
 (defn set-instance-state-from-commandline!
   "Set fields in the Sim's instanceState from parameters passed on the command line."
@@ -715,8 +714,8 @@
     (when-let [newval (:link-prob options)] (.setLinkProb sim newval))
     (when-let [newval (:tran-stddev options)] (.setTranStddev sim newval))
     (when-let [newval (:global-interloc-mean options)] (.setGlobalInterlocMean sim newval))
-    (when-let [newval (:success-stddev options)] (.setSuccessStddev sim newval))))
-    (reset! commandline commline))) ; clear it so user can set params in the gui
+    (when-let [newval (:success-stddev options)] (.setSuccessStddev sim newval)))
+  (reset! commandline commline)) ; clear it so user can set params in the gui
 
 (defn -main
   [& args]
