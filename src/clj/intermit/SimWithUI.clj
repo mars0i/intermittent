@@ -105,6 +105,7 @@
                             (doseq [indiv population] 
                               (when-let [speaker (s/get-prev-speaker indiv)]
                                 (.addEdge talk-net speaker indiv nil))))))))
+                                                 ;  from    to  (from end is wider; to end is pointed)
 
 (defn setup-portrayals
   [this-gui]  ; instead of 'this': avoid confusion with proxy below
