@@ -753,7 +753,8 @@
                                         (count population))))))))
   (report-run-params this))
 
-
+;; This really belongs in SimWithUI, but putting it here is convenient--
+;; makes it immediately available at the REPL.
 (defn repl-gui
   "Convenience function to init and start GUI from the REPL.
   Returns the new Sim object."
