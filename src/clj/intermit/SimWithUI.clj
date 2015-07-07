@@ -170,7 +170,6 @@
       (.setTitle "Intermittent")
       (.setVisible true))))
 
-
 (defn -quit
   [this]
   (.superQuit this)  ; combine in doto?
