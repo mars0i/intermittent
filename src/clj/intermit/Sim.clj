@@ -780,3 +780,15 @@
                               (doseq [^Indiv indiv population] (update-success! indiv sim))  ; update each indiv's success field (uses relig)
                               (collect-data sim))))))
   (report-run-params this)) ; At beginning of run, tell user what parameters we're using
+
+
+(defn repl-gui
+  "Convenience function to init and start GUI from the REPL.
+  Returns the new Sim object."
+  []
+  (let [sim (Sim. (System/currentTimeMillis))]
+    (.setVisible (sim.display.Console. (intermit.SimWithUI. sim))
+                 true)
+    sim))
+
+
