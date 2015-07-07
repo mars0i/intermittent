@@ -752,3 +752,13 @@
                                      (/ (sum-relig 0.0 population)
                                         (count population))))))))
   (report-run-params this))
+
+
+(defn repl-gui
+  "Convenience function to init and start GUI from the REPL.
+  Returns the new Sim object."
+  []
+  (let [sim (Sim. (System/currentTimeMillis))]
+    (.setVisible (sim.display.Console. (intermit.SimWithUI. sim))
+                 true)
+    sim))
