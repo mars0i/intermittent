@@ -89,7 +89,7 @@
 (def slider-max-num-communities 50)
 (def slider-max-indivs-per-community 50)
 (def slider-max-tran-stddev 3.0)
-(def slider-max-global-interloc-mean 1.0)
+(def slider-max-global-interloc-mean 200.0)
 (def slider-max-success-stddev 3.0)
 
 (defn remove-if-identical
@@ -163,7 +163,7 @@
 (defn -domSuccessStddev [this] (Interval. 0.0 slider-max-success-stddev))
 (defn -getSuccessMean ^double [^Sim this] @(.successMean ^InstanceState (.instanceState this)))
 (defn -setSuccessMean [^Sim this ^double newval] (reset! (.successMean ^InstanceState (.instanceState this)) newval))
-(defn -domSuccessMean [this] (Interval. -1.0 1.0)) 
+(defn -domSuccessMean [this] (Interval. -2.0 1.0)) 
 
 ;; We set the function that decides how to link nodes using MASON's popup menu functionality,
 ;; which uses a mapping between strings in an array and their indexes.  It's the string that's
