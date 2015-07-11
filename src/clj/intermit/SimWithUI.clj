@@ -178,3 +178,12 @@
   (doto this
     (set-display-frame nil)
     (set-display nil)))
+
+(defn repl-gui
+  "Convenience function to init and start GUI from the REPL.
+  Returns the new Sim object."
+  []
+  (let [sim (Sim. (System/currentTimeMillis))]
+    (.setVisible (sim.display.Console. (intermit.SimWithUI. sim))
+                 true)
+    sim))

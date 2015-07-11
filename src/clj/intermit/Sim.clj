@@ -72,9 +72,25 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; DEFAULTS AND GENERAL UTILITY CODE
 
-(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-noise sum-relig calc-success getRelig
-         getSuccess get-population link-styles binomial-link-indivs! sequential-link-indivs! both-link-indivs! 
-         link-style-names link-style-idxs binomial-link-style-idx sequential-link-style-idx both-link-style-idx)
+(declare initial-num-communities initial-indivs-per-community initial-link-prob initial-tran-stddev initial-global-interloc-mean
+         initial-success-stddev initial-success-mean initial-link-style-idx slider-max-num-communities slider-max-indivs-per-community
+         slider-max-tran-stddev slider-max-global-interloc-mean slider-max-success-stddev remove-if-identical 
+         -init-instance-state -getNumCommunities -setNumCommunities -domNumCommunities -getIndivsPerCommunity -setIndivsPerCommunity 
+         -domIndivsPerCommunity -getLinkProb -setLinkProb -domLinkProb -getTranStddev -setTranStddev -domTranStddev -getGlobalInterlocMean
+         -setGlobalInterlocMean -domGlobalInterlocMean -getSuccessStddev -setSuccessStddev -domSuccessStddev -getSuccessMean -setSuccessMean
+         -domSuccessMean -getLinkStyle -setLinkStyle -domLinkStyle get-communities get-population -getReligDistribution -getMeanReligTimeSeries
+         -getMeanReligDistribution -getSuccessDistribution -getMeanSuccessTimeSeries -getMeanSuccessDistribution IndivP CommunityP 
+         sum-relig sample-wout-repl-or-me rosetta-shuffle bag-shuffle bag-sample take-rand1 take-rand2 take-rand3 take-rand4 take-rand5
+         take-randnth lazy-shuffle choose-others-from-pop choose-most-successful calc-success add-noise make-indiv binomial-link-indivs!
+         sequential-link-indivs!  both-link-indivs!  link-style-names link-style-fns binomial-link-style-idx sequential-link-style-idx
+         both-link-style-idx link-style-name-to-idx link-indivs! make-community-of-indivs make-communities-into-pop!
+         report-run-params commandline record-commandline-args!  set-instance-state-from-commandline! -main -start
+         ;; type methods:
+         getId getSuccess getRelig getNeighbors get-restofpop get-prev-speaker add-neighbor!  set-restofpop!  update-success!  copy-relig!  get-members)
+
+;(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-noise sum-relig calc-success getRelig
+;         getSuccess get-population link-styles binomial-link-indivs! sequential-link-indivs! both-link-indivs! 
+;         link-style-names link-style-idxs binomial-link-style-idx sequential-link-style-idx both-link-style-idx)
 
 (def initial-num-communities 12) ; use something that factors into x and y dimensions
 (def initial-indivs-per-community 15)
@@ -97,11 +113,6 @@
   [obj coll]
   (remove #(identical? obj %) coll))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; INSTANCESTATE FOR SIM CLASS
-;; Used to hold mutable data in Sim's instanceState variable
-;; Need def here so we can type-hint Indiv's methods
-
 ;; Note some of these have to be atoms so that that we can allow restarting with a different setup.
 (deftype InstanceState [; run parameters:
                         numCommunities      ; number of communities
@@ -119,6 +130,122 @@
                         gaussian                ; a Normally-distribution wrapper
                         meanReligSeries         ; records mean relig values at timestep
                         meanSuccessSeries])     ; records mean success values at timestep
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Sim: reset of class for overall system
+
+(defn report-run-params
+  [^Sim sim]
+  (let [istate (.instanceState sim)]
+    (pp/cl-format true
+                  "~ax~a indivs, link style = ~a, link prob (if relevant) = ~a, tran stddev = ~a, global interlocutor mean = ~a, success stddev = ~a, success mean = ~a~%"
+                  @(.numCommunities istate)
+                  @(.indivsPerCommunity istate)
+                  (link-style-names @(.linkStyleIdx istate))
+                  @(.linkProb istate)
+                  @(.tranStddev istate)
+                  @(.globalInterlocMean istate)
+                  @(.successStddev istate)
+                  @(.successMean istate))))
+
+;; Var to pass info from main to start.  Must be a better, proper, way.  Really a big kludge.
+;; Note this is a "static" var--it's in the class, so to speak, and not in the instance (i.e. not in instanceState)
+;; but that's OK since its purpose is to be used from main() the first time through.
+;; This may need to be called before a Sim is created, so it can't be part of the Sim's instanceState.
+(def commandline (atom nil))
+
+(defn record-commandline-args!
+  "Temporarily store values of parameters passed on the command line."
+  [args]
+  ;; These options should not conflict with MASON's.  Example: If "-h" is the single-char help option, doLoop will never see "-help" (although "-t n" doesn't conflict with "-time") (??).
+  (let [cli-options [["-?" "--help" "Print this help message."]
+                     ["-n" "--number-of-communities <number of communities>" "Number of communities." :parse-fn #(Integer. %)]
+                     ["-i" "--indivs-per-community <number of indivs" "Number of indivs per community." :parse-fn #(Integer. %)]
+                     ["-l" "--link-style {binomial|sequential|both}" (str "Create within-community links with method:\n"
+                                                                          "          binomial: Link indivs randomly using the Erdos-Renyi/binomial/Poisson method.\n"
+                                                                          "          sequential: Link indivs in a sequence, with 2 links per indiv except on ends of sequence.\n"
+                                                                          "          both: Use both methods.") :parse-fn link-style-name-to-idx]
+                     ["-p" "--link-prob <number in [0,1]>" "Probability that each pair of indivs will be linked (for binomial and both)." :parse-fn #(Double. %)]
+                     ["-t" "--tran-stddev <non-negative number>" "Standard deviation of Normally distributed noise in relig transmission." :parse-fn #(Double. %)]
+                     ["-g" "--global-interloc-mean <non-negative number>" "Mean number of Poisson-distributed interlocutors from entire population" :parse-fn #(Double. %)]
+                     ["-s" "--success-stddev <non-negative number>" "Standard deviation of Normally distributed noise in success calculation" :parse-fn #(Double. %)]]
+        usage-fmt (fn [options]
+                    (let [fmt-line (fn [[short-opt long-opt desc]] (str short-opt ", " long-opt ": " desc))]
+                      (clojure.string/join "\n" (concat (map fmt-line options)))))
+        ;error-fmt (fn [errors] (str "The following errors occurred while parsing your command:\n\n" (apply str errors))) ; not in use
+        {:keys [options arguments errors summary] :as commline} (clojure.tools.cli/parse-opts args cli-options)]
+    (when (:help options)
+      (println "Command line options for the Intermittent simulation:")
+      (println (usage-fmt cli-options))
+      (println "Intermittent and MASON options can both be used:")
+      (println "-help (note single dash): Print help message for MASON.")
+      (System/exit 0))))
+    ;; Don't exit if there errors conains something; these might be options to be passed to MASON's doLoop().
+
+(defn set-instance-state-from-commandline!
+  "Set fields in the Sim's instanceState from parameters passed on the command line."
+  [^Sim sim commline]
+  (let [{:keys [options arguments errors summary]} @commline]
+    (when-let [newval (:number-of-communities options)] (.setNumCommunities sim newval))
+    (when-let [newval (:indivs-per-community options)] (.setIndivsPerCommunity sim newval))
+    (when-let [newval (:link-style options)] (.setLinkStyle sim newval))
+    (when-let [newval (:link-prob options)] (.setLinkProb sim newval))
+    (when-let [newval (:tran-stddev options)] (.setTranStddev sim newval))
+    (when-let [newval (:global-interloc-mean options)] (.setGlobalInterlocMean sim newval))
+    (when-let [newval (:success-stddev options)] (.setSuccessStddev sim newval)))
+  (reset! commandline commline)) ; clear it so user can set params in the gui
+
+(defn -main
+  [& args]
+  (record-commandline-args! args) ; The Sim isn't available yet, so store commandline args for later access by start().
+  (sim.engine.SimState/doLoop intermit.Sim (into-array String args))
+  (System/exit 0))
+
+
+;; doall all sequences below.  They're short, so there's no point in waiting for them to get realized who knows where/when.
+(defn -start
+  "Function called to (re)start a new simulation run.  Initializes a new
+  set of communities, each with a new set of community members."
+  [^Sim this]
+  (.superStart this)
+  ;; If user passed commandline options, use them to set parameters, rather than defaults:
+  (when @commandline
+    (set-instance-state-from-commandline! this commandline)
+    (reset! commandline nil)) ; do the preceding only the first time (a kludge), e.g. not if user has changed params in the gui
+  ;; Construct core data structures of the simulation:
+  (let [^Schedule schedule (.schedule this)
+        ^InstanceState instance-state (.instanceState this)
+        num-communities  @(.numCommunities instance-state)
+        indivs-per-community @(.indivsPerCommunity instance-state)
+        communities (vec (repeatedly num-communities
+                                     #(make-community-of-indivs this indivs-per-community)))
+        population (make-communities-into-pop! communities)
+        meanReligSeriesAtom (.meanReligSeries instance-state)]
+    ;; Record core data structures and utility states:
+    (reset! (.poisson instance-state) (Poisson. @(.globalInterlocMean instance-state) (.random this)))
+    (reset! (.gaussian instance-state) (Normal. 0.0 1.0 (.random this))) ; mean and sd here can be overridden later
+    (reset! (.communities instance-state) communities)
+    (reset! (.population instance-state) population)
+    (reset! meanReligSeriesAtom [])
+    ;; Schedule each indiv's step function:
+    (doseq [indiv population] (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))  ; indivs' step fns run first to communicate relig
+    ;; Schedule a step to update each indiv's success field:
+    (.scheduleRepeating schedule Schedule/EPOCH 1                                    ; then update success fields afterwards
+                        (reify Steppable 
+                          (step [this sim-state]
+                            (doseq [^Indiv indiv population] (update-success! indiv sim-state))
+                            (swap! meanReligSeriesAtom
+                                   conj 
+                                   (Double2D.
+                                     (double (.getSteps schedule)) ; coercion will happen automatically; I made it explicit. (getTime incorrect if funny scheduling.)
+                                     (/ (sum-relig 0.0 population)
+                                        (count population))))))))
+  (report-run-params this))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; INSTANCESTATE FOR SIM CLASS
+;; Used to hold mutable data in Sim's instanceState variable
+;; Need def here so we can type-hint Indiv's methods
 
 (defn -init-instance-state
   "Initializes instance-state when an instance of class Sim is created."
@@ -639,127 +766,3 @@
     (doseq [indiv population]
       (set-restofpop! indiv (vec (remove-if-identical indiv population))))
     population))
-
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Sim: reset of class for overall system
-
-(defn report-run-params
-  [^Sim sim]
-  (let [istate (.instanceState sim)]
-    (pp/cl-format true
-                  "~ax~a indivs, link style = ~a, link prob (if relevant) = ~a, tran stddev = ~a, global interlocutor mean = ~a, success stddev = ~a, success mean = ~a~%"
-                  @(.numCommunities istate)
-                  @(.indivsPerCommunity istate)
-                  (link-style-names @(.linkStyleIdx istate))
-                  @(.linkProb istate)
-                  @(.tranStddev istate)
-                  @(.globalInterlocMean istate)
-                  @(.successStddev istate)
-                  @(.successMean istate))))
-
-;; Var to pass info from main to start.  Must be a better, proper, way.  Really a big kludge.
-;; Note this is a "static" var--it's in the class, so to speak, and not in the instance (i.e. not in instanceState)
-;; but that's OK since its purpose is to be used from main() the first time through.
-;; This may need to be called before a Sim is created, so it can't be part of the Sim's instanceState.
-(def commandline (atom nil))
-
-(defn record-commandline-args!
-  "Temporarily store values of parameters passed on the command line."
-  [args]
-  ;; These options should not conflict with MASON's.  Example: If "-h" is the single-char help option, doLoop will never see "-help" (although "-t n" doesn't conflict with "-time") (??).
-  (let [cli-options [["-?" "--help" "Print this help message."]
-                     ["-n" "--number-of-communities <number of communities>" "Number of communities." :parse-fn #(Integer. %)]
-                     ["-i" "--indivs-per-community <number of indivs" "Number of indivs per community." :parse-fn #(Integer. %)]
-                     ["-l" "--link-style {binomial|sequential|both}" (str "Create within-community links with method:\n"
-                                                                          "          binomial: Link indivs randomly using the Erdos-Renyi/binomial/Poisson method.\n"
-                                                                          "          sequential: Link indivs in a sequence, with 2 links per indiv except on ends of sequence.\n"
-                                                                          "          both: Use both methods.") :parse-fn link-style-name-to-idx]
-                     ["-p" "--link-prob <number in [0,1]>" "Probability that each pair of indivs will be linked (for binomial and both)." :parse-fn #(Double. %)]
-                     ["-t" "--tran-stddev <non-negative number>" "Standard deviation of Normally distributed noise in relig transmission." :parse-fn #(Double. %)]
-                     ["-g" "--global-interloc-mean <non-negative number>" "Mean number of Poisson-distributed interlocutors from entire population" :parse-fn #(Double. %)]
-                     ["-s" "--success-stddev <non-negative number>" "Standard deviation of Normally distributed noise in success calculation" :parse-fn #(Double. %)]]
-        usage-fmt (fn [options]
-                    (let [fmt-line (fn [[short-opt long-opt desc]] (str short-opt ", " long-opt ": " desc))]
-                      (clojure.string/join "\n" (concat (map fmt-line options)))))
-        ;error-fmt (fn [errors] (str "The following errors occurred while parsing your command:\n\n" (apply str errors))) ; not in use
-        {:keys [options arguments errors summary] :as commline} (clojure.tools.cli/parse-opts args cli-options)]
-    (when (:help options)
-      (println "Command line options for the Intermittent simulation:")
-      (println (usage-fmt cli-options))
-      (println "Intermittent and MASON options can both be used:")
-      (println "-help (note single dash): Print help message for MASON.")
-      (System/exit 0))))
-    ;; Don't exit if there errors conains something; these might be options to be passed to MASON's doLoop().
-
-(defn set-instance-state-from-commandline!
-  "Set fields in the Sim's instanceState from parameters passed on the command line."
-  [^Sim sim commline]
-  (let [{:keys [options arguments errors summary]} @commline]
-    (when-let [newval (:number-of-communities options)] (.setNumCommunities sim newval))
-    (when-let [newval (:indivs-per-community options)] (.setIndivsPerCommunity sim newval))
-    (when-let [newval (:link-style options)] (.setLinkStyle sim newval))
-    (when-let [newval (:link-prob options)] (.setLinkProb sim newval))
-    (when-let [newval (:tran-stddev options)] (.setTranStddev sim newval))
-    (when-let [newval (:global-interloc-mean options)] (.setGlobalInterlocMean sim newval))
-    (when-let [newval (:success-stddev options)] (.setSuccessStddev sim newval)))
-  (reset! commandline commline)) ; clear it so user can set params in the gui
-
-(defn -main
-  [& args]
-  (record-commandline-args! args) ; The Sim isn't available yet, so store commandline args for later access by start().
-  (sim.engine.SimState/doLoop intermit.Sim (into-array String args))
-  (System/exit 0))
-
-
-;; doall all sequences below.  They're short, so there's no point in waiting for them to get realized who knows where/when.
-(defn -start
-  "Function called to (re)start a new simulation run.  Initializes a new
-  set of communities, each with a new set of community members."
-  [^Sim this]
-  (.superStart this)
-  ;; If user passed commandline options, use them to set parameters, rather than defaults:
-  (when @commandline
-    (set-instance-state-from-commandline! this commandline)
-    (reset! commandline nil)) ; do the preceding only the first time (a kludge), e.g. not if user has changed params in the gui
-  ;; Construct core data structures of the simulation:
-  (let [^Schedule schedule (.schedule this)
-        ^InstanceState instance-state (.instanceState this)
-        num-communities  @(.numCommunities instance-state)
-        indivs-per-community @(.indivsPerCommunity instance-state)
-        communities (vec (repeatedly num-communities
-                                     #(make-community-of-indivs this indivs-per-community)))
-        population (make-communities-into-pop! communities)
-        meanReligSeriesAtom (.meanReligSeries instance-state)]
-    ;; Record core data structures and utility states:
-    (reset! (.poisson instance-state) (Poisson. @(.globalInterlocMean instance-state) (.random this)))
-    (reset! (.gaussian instance-state) (Normal. 0.0 1.0 (.random this))) ; mean and sd here can be overridden later
-    (reset! (.communities instance-state) communities)
-    (reset! (.population instance-state) population)
-    (reset! meanReligSeriesAtom [])
-    ;; Schedule each indiv's step function:
-    (doseq [indiv population] (.scheduleRepeating schedule Schedule/EPOCH 0 indiv))  ; indivs' step fns run first to communicate relig
-    ;; Schedule a step to update each indiv's success field:
-    (.scheduleRepeating schedule Schedule/EPOCH 1                                    ; then update success fields afterwards
-                        (reify Steppable 
-                          (step [this sim-state]
-                            (doseq [^Indiv indiv population] (update-success! indiv sim-state))
-                            (swap! meanReligSeriesAtom
-                                   conj 
-                                   (Double2D.
-                                     (double (.getSteps schedule)) ; coercion will happen automatically; I made it explicit. (getTime incorrect if funny scheduling.)
-                                     (/ (sum-relig 0.0 population)
-                                        (count population))))))))
-  (report-run-params this))
-
-;; This really belongs in SimWithUI, but putting it here is convenient--
-;; makes it immediately available at the REPL.
-(defn repl-gui
-  "Convenience function to init and start GUI from the REPL.
-  Returns the new Sim object."
-  []
-  (let [sim (Sim. (System/currentTimeMillis))]
-    (.setVisible (sim.display.Console. (intermit.SimWithUI. sim))
-                 true)
-    sim))
