@@ -11,3 +11,5 @@ In this version (originally on git branch pllupd), communication happens
 cultural variant variable.  Communication takes place by updating an
 indiv's "new" variable based on the non-new vars in others.  Then all
 of the new values are copied to the regular variables in one step.
+
+This became the master git branch on 7/14/2015.
