@@ -76,7 +76,7 @@
 
 (defn -main
   [& args]
-  (let [sim (intermit.Sim. (System/currentTimeMillis))]
+  (let [sim (Sim. (System/currentTimeMillis))]
     (s/record-commandline-args! args) 
     (when @s/commandline (s/set-instance-state-from-commandline! sim s/commandline))
     (.setVisible (Console. (intermit.SimWithUI. sim)) true)))
@@ -171,7 +171,6 @@
       (.setTitle "Intermittent")
       (.setVisible true))))
 
-
 (defn -quit
   [this]
   (.superQuit this)  ; combine in doto?
@@ -186,6 +185,6 @@
   Returns the new Sim object."
   []
   (let [sim (Sim. (System/currentTimeMillis))]
-    (.setVisible (sim.display.Console. (intermit.SimWithUI. sim))
+    (.setVisible (Console. (intermit.SimWithUI. sim))
                  true)
     sim))
