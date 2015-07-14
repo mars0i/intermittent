@@ -17,6 +17,9 @@
 
 ;; Tip: Methods named "getBlahBlah" or "setBlahBlah" will be found by the UI via reflection.
 
+;; Convention: I use the "->Abc" constructor function iff a class was defined by deftype
+;; or defrecord, even though "Abc." is available as well.
+
 ;(set! *warn-on-reflection* true)
 
 ;; Put gen-class Sim first so we can type-hint methods in Indiv etc.
@@ -123,7 +126,7 @@
 (defn -init-instance-state
   "Initializes instance-state when an instance of class Sim is created."
   [seed]
-  [[seed] (InstanceState. (atom initial-num-communities)
+  [[seed] (->InstanceState (atom initial-num-communities)
                           (atom initial-indivs-per-community) 
                           (atom initial-link-style-idx)
                           (atom initial-link-prob)
@@ -566,7 +569,7 @@
   [sim-state]
   (let [relig   (.nextDouble (.random sim-state))
         success (.nextDouble (.random sim-state))]
-    (Indiv.
+    (->Indiv
       (str (gensym "i"))  ; id
       success             ; success
       relig               ; relig
@@ -651,7 +654,7 @@
         rng (.random sim)
         link-style-idx @(.linkStyleIdx (.instanceState sim))]
     (link-indivs! link-style-idx rng @(.linkProb (.instanceState sim)) indivs)
-    (Community. (str (gensym "c")) indivs)))
+    (->Community (str (gensym "c")) indivs)))
 
 (defn make-communities-into-pop!
   "Given a collection of communities, returns a vector of individuals in all 
