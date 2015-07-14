@@ -11,3 +11,6 @@ communication from others' cultvar variables happens in random
 order--i.e. the indivs who listen to their neighbors and others are
 selected in random orders.  This allows per-tick path dependencies,
 but each tick will have different ones.
+
+This was the original master git branch.  I replaced it with branch
+pllupd on 1/14/2015.
