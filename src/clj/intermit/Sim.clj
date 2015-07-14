@@ -75,9 +75,27 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; DEFAULTS AND GENERAL UTILITY CODE
 
-(declare sample-wout-repl-or-me choose-others-from-pop choose-most-successful add-noise sum-relig calc-success getRelig
-         getSuccess get-population link-styles binomial-link-indivs! sequential-link-indivs! both-link-indivs! 
-         link-style-names link-style-idxs binomial-link-style-idx sequential-link-style-idx both-link-style-idx)
+(declare ;; constructor functions defined by deftype or defrecord:
+         ->InstanceState ->Indiv ->Community
+         ;; functions defined by defprotocol or definterface:
+         getId getSuccess getRelig getNeighbors get-restofpop get-prev-speaker add-neighbor! set-restofpop! copy-relig!
+         update-relig! update-success! get-members
+         ;; functions defined by defn:
+         remove-if-identical -init-instance-state -getNumCommunities -setNumCommunities -domNumCommunities -getIndivsPerCommunity
+         -setIndivsPerCommunity -domIndivsPerCommunity -getLinkProb -setLinkProb -domLinkProb -getTranStddev -setTranStddev
+         -domTranStddev -getGlobalInterlocMean -setGlobalInterlocMean -domGlobalInterlocMean -getSuccessStddev -setSuccessStddev
+         -domSuccessStddev -getSuccessMean -setSuccessMean -domSuccessMean -getLinkStyle -setLinkStyle -domLinkStyle get-communities
+         get-population -getReligDistribution -getMeanReligTimeSeries -getMeanReligDistribution -getSuccessDistribution
+         -getMeanSuccessTimeSeries -getMeanSuccessDistribution add-relig add-success sample-wout-repl-or-me rosetta-shuffle bag-shuffle
+         bag-sample take-rand1 take-rand2 take-rand3 take-rand4 take-rand5 take-randnth lazy-shuffle choose-others-from-pop
+         choose-most-successful calc-success add-noise make-indiv binomial-link-indivs! sequential-link-indivs! both-link-indivs!
+         link-style-name-to-idx link-indivs! make-community-of-indivs make-communities-into-pop! collect-data report-run-params
+         record-commandline-args! set-instance-state-from-commandline! -main -start
+         ;; non-function variables:
+         initial-num-communities initial-indivs-per-community initial-link-prob initial-tran-stddev initial-global-interloc-mean
+         initial-success-stddev initial-success-mean initial-link-style-idx slider-max-num-communities slider-max-indivs-per-community
+         slider-max-tran-stddev slider-max-global-interloc-mean slider-max-success-stddev sum-relig sum-success link-style-names
+         link-style-fns binomial-link-style-idx sequential-link-style-idx both-link-style-idx commandline)
 
 (def initial-num-communities 12) ; use something that factors into x and y dimensions
 (def initial-indivs-per-community 15)
