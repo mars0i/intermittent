@@ -77,25 +77,18 @@
 
 (declare ;; constructor functions defined by deftype or defrecord:
          ->InstanceState ->Indiv ->Community
-         ;; functions defined by defprotocol or definterface:
-         getId getSuccess getRelig getNeighbors get-restofpop get-prev-speaker add-neighbor! set-restofpop! copy-relig!
-         update-relig! update-success! get-members
-         ;; functions defined by defn:
-         remove-if-identical -init-instance-state -getNumCommunities -setNumCommunities -domNumCommunities -getIndivsPerCommunity
-         -setIndivsPerCommunity -domIndivsPerCommunity -getLinkProb -setLinkProb -domLinkProb -getTranStddev -setTranStddev
-         -domTranStddev -getGlobalInterlocMean -setGlobalInterlocMean -domGlobalInterlocMean -getSuccessStddev -setSuccessStddev
-         -domSuccessStddev -getSuccessMean -setSuccessMean -domSuccessMean -getLinkStyle -setLinkStyle -domLinkStyle get-communities
-         get-population -getReligDistribution -getMeanReligTimeSeries -getMeanReligDistribution -getSuccessDistribution
-         -getMeanSuccessTimeSeries -getMeanSuccessDistribution add-relig add-success sample-wout-repl-or-me rosetta-shuffle bag-shuffle
-         bag-sample take-rand1 take-rand2 take-rand3 take-rand4 take-rand5 take-randnth lazy-shuffle choose-others-from-pop
-         choose-most-successful calc-success add-noise make-indiv binomial-link-indivs! sequential-link-indivs! both-link-indivs!
-         link-style-name-to-idx link-indivs! make-community-of-indivs make-communities-into-pop! collect-data report-run-params
-         record-commandline-args! set-instance-state-from-commandline! -main -start
-         ;; non-function variables:
-         initial-num-communities initial-indivs-per-community initial-link-prob initial-tran-stddev initial-global-interloc-mean
-         initial-success-stddev initial-success-mean initial-link-style-idx slider-max-num-communities slider-max-indivs-per-community
-         slider-max-tran-stddev slider-max-global-interloc-mean slider-max-success-stddev sum-relig sum-success link-style-names
-         link-style-fns binomial-link-style-idx sequential-link-style-idx both-link-style-idx commandline)
+         ;; method functions defined by defprotocol or definterface:
+         getId getSuccess getRelig getNeighbors get-restofpop get-prev-speaker add-neighbor! set-restofpop! copy-relig! update-relig! update-success! get-members
+         ;; regular functions defined by defn:
+         remove-if-identical -init-instance-state -getNumCommunities -setNumCommunities -domNumCommunities -getIndivsPerCommunity -setIndivsPerCommunity -domIndivsPerCommunity 
+         -getLinkProb -setLinkProb -domLinkProb -getTranStddev -setTranStddev -domTranStddev -getGlobalInterlocMean -setGlobalInterlocMean -domGlobalInterlocMean -getSuccessStddev 
+         -setSuccessStddev -domSuccessStddev -getSuccessMean -setSuccessMean -domSuccessMean -getLinkStyle -setLinkStyle -domLinkStyle get-communities get-population 
+         -getReligDistribution -getMeanReligTimeSeries -getMeanReligDistribution -getSuccessDistribution -getMeanSuccessTimeSeries -getMeanSuccessDistribution add-relig add-success 
+         bag-shuffle bag-sample take-rand choose-others-from-pop choose-most-successful calc-success add-noise make-indiv binomial-link-indivs! sequential-link-indivs! 
+         both-link-indivs! link-style-name-to-idx link-indivs!  make-community-of-indivs make-communities-into-pop! collect-data report-run-params record-commandline-args! 
+         set-instance-state-from-commandline! -main -start
+         ;; non-functions not defined immediately below:
+         sum-relig sum-success link-style-names link-style-fns binomial-link-style-idx sequential-link-style-idx both-link-style-idx commandline)
 
 (def initial-num-communities 12) ; use something that factors into x and y dimensions
 (def initial-indivs-per-community 15)
@@ -121,7 +114,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; INSTANCESTATE FOR SIM CLASS
 ;; Used to hold mutable data in Sim's instanceState variable
-;; Need def here so we can type-hint Indiv's methods
+;; NOTE: This must come before the methods for Sim so that we can use type hints there.
 
 ;; Note some of these have to be atoms so that that we can allow restarting with a different setup.
 (deftype InstanceState [; run parameters:
@@ -236,6 +229,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; SIM: Definitions for main class in this file
+;; NOTE: The definition of InstanceState must come first, so that we can type-hint it below.
 
 (defn -main
   [& args]
@@ -352,11 +346,15 @@
   (reset! commandline commline)) ; clear it so user can set params in the gui
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; PROTOCOLS/INTERFACES
+;; INDIV: class for individuals who communicate with each other.
+;; These could be persons, villages, subaks, etc.
+;; Initial version implements Steppable.
 
-;; Separating these allows future versions in which e.g. communities can communicate,
-;; and allows a unified interface for finding out average culture of a community
-;; cultural values of indivs, etc.
+;; NOTE: Objects created by deftype are faster than those created by
+;; defrecord when they are hashed (e.g. in the set that's used in sample-wout-repl).
+;; 
+;; volatile-mutable is a bit inconvenient since it requires accessors,
+;; but it's faster than atoms, and these fields get accessed a lot.
 
 (defprotocol IndivP
   "Protocol for Indivs."
@@ -371,20 +369,6 @@
   (copy-relig! [this sim])
   (update-relig! [this])
   (update-success! [this sim]))
-
-(defprotocol CommunityP
-  (get-members [this]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; INDIV: class for individuals who communicate with each other.
-;; These could be persons, villages, subaks, etc.
-;; Initial version implements Steppable.
-
-;; NOTE: Objects created by deftype faster than those created by
-;; defrecord when they are hashed (e.g. in the set that's used in sample-wout-repl).
-;; 
-;; volatile-mutable is a bit inconvenient since it requires accessors,
-;; but it's faster than atoms, and these fields get accessed a lot.
 
 (deftype Indiv [id
                 ^:volatile-mutable success 
@@ -462,166 +446,9 @@
   values of indivs along with initial value.  Suitable for use with reduce."
   (partial reduce add-success))
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; ALTERNATIVE SHUFFLING AND SAMPLING FUNCTIONS (not all in use)
-
-;; BUG: Returns a set, at present.  There's no reason to think that when
-;; converted to a vector, the result is in random order,
-;; but I need for it to be random if choose-most-successful requires that.
-;;
-;; It's much faster to remove the originating Indiv from samples here,
-;; rather than removing it from the collection to be sampled, at least
-;; for reasonably large populations.  Makes this function more complicated, 
-;; though.  Hopefully the bugs are out now.
-(defn sample-wout-repl-or-me
-  "Special sample without replacement function:
-  Returns num-samples samples from coll without replacement, excluding 
-  items identical? to me.  Returns a vector or a set; if you want something
-  more specific, it's the caller's responsibility.  Should be fastest when
-  coll has fast index access (e.g. it's a vector) and when the elements hash
-  by identity (e.g. when defined by deftype rather than defrecord).  NOTE:
-  results are not in random order."
-  [^MersenneTwisterFast rng ^long num-samples me coll]
-  (let [size (count coll)
-        size-wout-me (dec size)] ; how many elements, excluding me?
-    (when (>= num-samples size) (throw (Exception. "num-samples is larger than coll size w/out 'me'")))
-    (loop [sample-set #{}]   ; don't return coll as is when num-samples = size; need to allow it to be shuffled anyway (maybe not so efficient ...)
-      (if (== (count sample-set) num-samples)
-        sample-set
-        (let [sample (nth coll (.nextInt rng size))]
-          (if (identical? me sample) ; if it's the one we don't want,
-            (recur sample-set)       ; lose it
-            (recur (conj sample-set sample))))))))
-
-;;;;;;
-;;; The take-randX versions both sample without replacement a collection and shuffle the output.
-;;; take-randnth seems a little slower; the other three are similar in speed.
-
-;; From Rosetta Code page for "Knuth Shuffle" (= Fisher-Yates): http://rosettacode.org/wiki/Knuth_shuffle#Clojure
-;; Note vect *must* be a vector.  
-;; Very slow on vec of len 200--like take-rand[3-5], it's an order of magnitude slower than bag-shuffle.
-;; I added use of rng, fixed typo (missing paren at end of anonymous fn in original), and added the use
-;; of transients, which produces only a slight improvement.
-(defn rosetta-shuffle [rng vect]
-  (persistent!
-    (reduce (fn [v i] (let [r (.nextInt rng i)]
-                        (assoc! v i (v r) r (v i))))  ; i.e. starting from vector v, replace element at i with (v r), the element at r, and vice versa.
-            (transient vect)
-            (range (dec (count vect)) 1 -1)))) ; counts down from one less than length to 2, inclusive.
-
-
-;; Marshall Abrams
-;; Faster than Clojure's shuffle, at least for pops of size 200 or so
-(defn bag-shuffle
-  [rng coll]
-  (let [bag (sim.util.Bag. coll)]
-    (.shuffle bag rng)
-    bag))
-
-;; On large sample, almost as fast as take-rand1, but uses MersenneTwisterFast.
-;; Note that the 'take' gives a 2X drop in perf over mere bag-shuffle, so 
-;; if you know you want the whole thing, just shuffle it.
-;; On small sample, order of mag slower than take-rand[3-5].
-;; Marshall Abrams
-(defn bag-sample
-  [rng n coll]
-  (subvec (vec (bag-shuffle rng coll)) 0 n))
-  ;(take n (bag-shuffle rng coll))) ; seems a little slower than subvec sometimes
-
-;; DON'T USE THIS: It uses Java's rng
-;; Very slow for small samples, but incredibly fast for large samples.
-;; by Pepijn de Vos, pepijndevos from https://gist.github.com/pepijndevos/805747, with small mod by Marshall
-; naive, O(n+m)
-(defn take-rand1 [_ n coll] (take n (shuffle coll)))
- 
-;; THIS ONE IS ACTUALLY A BIT FASTER THAN THE ... COOLER ONES BELOW FOR SMALL SAMPLES,
-;; BUT IT'S DOG SLOW FOR LARGE SAMPLES--2 orders of magnitude less than take-rand1.
-;; by Pepijn de Vos, pepijndevos from https://gist.github.com/pepijndevos/805747, with small mod by Marshall
-; lazy, O(n!@#$%m^&)
-(defn take-rand2 [rng n coll]
-  (let [coll (vec coll)
-        len (count coll)]
-    (take n (distinct (repeatedly #(nth coll (.nextInt rng len)))))))
-
-;; TODO CHECK WHETHER THESE ARE FISHER-YATES SHUFFLES:
-
-;; Excellent on small samples, though not as good as take-rand2.
-;; One order of magnitude slower than take-rand1 on large samples.
-;; by Pepijn de Vos, pepijndevos from https://gist.github.com/pepijndevos/805747, with small mod by Marshall
-;; reduce, reorder, subvec, O(m)
-(defn take-rand3 [rng nr coll]
-  (let [len (count coll)
-        ; why doesn't rand-int take a start?
-        rand-int (fn [lo hi] (+ lo (.nextInt rng (- hi lo))))]
-    (subvec (->> (range nr)
-                 (reduce #(conj %1 [%2 (rand-int %2 len)]) []) ; for ea num in range, assoc it with a rand idx between num and end
-                 (reduce
-                   (fn swap [a [i b]]
-                      (assoc a b (get a i) i (get a b)))
-                   coll))
-            0 nr)))
-
-
-;; Excellent on small samples, though not as good as take-rand2.
-;; One order of magnitude slower than take-rand1 on large samples.
-;; from https://gist.github.com/pepijndevos/805747, by amalloy (?), with small mod by Marshall
-; amalloy, O(m)
-(defn take-rand4 [rng nr coll]
-  (first
-   (nth
-    (iterate (fn [[ret candidates]]
-               (let [idx (.nextInt rng (count candidates))]
-                 [(conj ret (candidates idx))
-                  (subvec (assoc candidates idx (candidates 0))
-                          1)]))
-             [[]
-              coll])
-    nr)))
-
-;; Excellent on small samples, though not as good as take-rand2.
-;; One order of magnitude slower than take-rand1 on large samples.
-;; A LITTLE FASTER than the preceding two on large samples.
-;; from https://gist.github.com/pepijndevos/805747, by amalloy (?), with small mod by Marshall
-; amalloy, o(mg)
-(defn take-rand5 [rng nr coll]
-  (take nr
-        ((fn shuffle [coll]
-           (lazy-seq
-             (let [c (count coll)]
-               (when-not (zero? c)
-                 (let [n (.nextInt rng c)]
-                   (cons (get coll n)
-                         (shuffle (pop! (assoc! coll n (get coll (dec c)))))))))))
-           (transient coll))))
-
-;; One order of magnitude slower than take-rand1 on large samples.
-;; By amalloy, from https://gist.github.com/amalloy/805546, with small mod by Marshall:
-(defn take-randnth [rng nr coll]
-  (take nr
-        (rest
-         (map first
-              (iterate (fn [[ret items]]
-                         (let [idx (.nextInt rng (count items))]
-                           [(items idx)
-                            (subvec (assoc items idx (items 0))
-                                    1)]))
-                       [nil
-                        (vec coll)])))))
-
-;; By amalloy, from https://gist.github.com/amalloy/805546:
-;; See also http://stackoverflow.com/questions/3944556/what-if-anything-is-wrong-with-this-shuffling-algorithm-and-how-can-i-know
-(defn lazy-shuffle [coll]
-  ((fn shuffle [^clojure.lang.ITransientVector coll]
-     (lazy-seq
-      (let [c (count coll)]
-        (when-not (zero? c)
-          (let [n (rand-int c)]
-            (cons (get coll n)
-                  (shuffle (.pop (assoc! coll n (get coll (dec c)))))))))))
-   (transient (vec coll))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Shuffling/sampling functions
+;; NOTE: For alternative shuffling and sampling functions see notinuse/Shuffle.clj
 
 ;; This is probably going overboard in service of speed, even though the 
 ;; optimizations do make big differences.  It's an experiment.
@@ -651,7 +478,35 @@
                                                  :else (recur (dec still-needed) (conj coll newelt)))))]      ; got a new one, but we need more
                                  (a-few-more (dec num-to-choose) (vector (nth restofpop (.nextInt rng size))))) ; get the first one
           (> (/ num-to-choose size) 1/50) (bag-sample rng num-to-choose restofpop) ; for large samples, use the bag shuffle and take
-          :else  (take-rand5 rng num-to-choose restofpop))))
+          :else  (take-rand rng num-to-choose restofpop))))
+
+;; Faster than Clojure's shuffle, at least for pops of size 200 or so
+(defn bag-shuffle
+  [rng coll]
+  (let [bag (sim.util.Bag. coll)]
+    (.shuffle bag rng)
+    bag))
+
+;; Note that the 'take' gives a 2X drop in perf over mere bag-shuffle, so 
+;; if you know you want the whole thing, just shuffle it.
+(defn bag-sample
+  [rng n coll]
+  (subvec (vec (bag-shuffle rng coll)) 0 n))
+
+;; IS THIS A FISHER-YATES(KNUTH) SHUFFLE?
+;; Excellent on small samples.  Slow on large samples. (take-rand5 in notinuse/Shuffle.clj)
+;; from https://gist.github.com/pepijndevos/805747, by amalloy, with small mod by Marshall
+(defn take-rand [rng nr coll]
+  (take nr
+        ((fn shuffle [coll]
+           (lazy-seq
+             (let [c (count coll)]
+               (when-not (zero? c)
+                 (let [n (.nextInt rng c)]
+                   (cons (get coll n)
+                         (shuffle (pop! (assoc! coll n (get coll (dec c)))))))))))
+           (transient coll))))
+
 
 
 ;; Can I avoid repeated accesses to the same field, caching them?  Does it matter?
@@ -767,14 +622,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; COMMUNITY: class for collections of Indivs or collections of Communities.
 
+(defprotocol CommunityP
+  (get-members [this]))
+
 (deftype Community [id members]
   CommunityP
     (get-members [this] members) ; so I don't have to remember whether I used atoms
   Object
     (toString [this] (str id ": " (vec (map #(.id %) members)))))
-
-
-;;; Runtime functions:
 
 ;;; Initialization functions:
 
