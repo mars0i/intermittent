@@ -86,7 +86,7 @@
          -getReligDistribution -getMeanReligTimeSeries -getMeanReligDistribution -getSuccessDistribution -getMeanSuccessTimeSeries -getMeanSuccessDistribution add-relig add-success 
          bag-shuffle bag-sample take-rand choose-others-from-pop choose-most-successful calc-success add-noise make-indiv binomial-link-indivs! sequential-link-indivs! 
          both-link-indivs! link-style-name-to-idx link-indivs!  make-community-of-indivs make-communities-into-pop! collect-data report-run-params record-commandline-args! 
-         set-instance-state-from-commandline! -main -start
+         set-instance-state-from-commandline! -main -start relig-to-success
          ;; non-functions not defined immediately below:
          sum-relig sum-success link-style-names link-style-fns binomial-link-style-idx sequential-link-style-idx both-link-style-idx commandline)
 
@@ -100,10 +100,12 @@
 (def initial-link-style-idx 1) ; This is an index into link-style-names and link-style-fns, defined below.
 ;; (We can't put link-style-fns here; eval'ing them at this point produces nothing.)
 
+(def success-threshold 0.85) ; used by relig-to-success, which is used by calc-success
+
 (def slider-max-num-communities 50)
 (def slider-max-indivs-per-community 50)
 (def slider-max-tran-stddev 3.0)
-(def slider-max-global-interloc-mean 1.0)
+(def slider-max-global-interloc-mean 200.0)
 (def slider-max-success-stddev 3.0)
 
 (defn remove-if-identical
@@ -155,26 +157,26 @@
 ;; NOTE The numeric -domXY fns set limits for sliders BUT DON'T RESTRICT VALUES TO THAT RANGE.  You can type in values outside the range, and they'll get used.
 (defn -getNumCommunities ^long [^Sim this] @(.numCommunities ^InstanceState (.instanceState this)))
 (defn -setNumCommunities [^Sim this ^long newval] (reset! (.numCommunities ^InstanceState (.instanceState this)) newval))
-(defn -domNumCommunities [this] (Interval. 1 slider-max-num-communities))
+(defn -domNumCommunities [this] (Interval. 1 ^long slider-max-num-communities))
 (defn -getIndivsPerCommunity ^long [^Sim this] @(.indivsPerCommunity ^InstanceState (.instanceState this)))
 (defn -setIndivsPerCommunity [^Sim this ^long newval] (reset! (.indivsPerCommunity ^InstanceState (.instanceState this)) newval))
-(defn -domIndivsPerCommunity [this] (Interval. 1 slider-max-indivs-per-community))
+(defn -domIndivsPerCommunity [this] (Interval. 1 ^long slider-max-indivs-per-community))
 (defn -getLinkProb ^double [^Sim this] @(.linkProb ^InstanceState (.instanceState this)))
 (defn -setLinkProb [^Sim this ^double newval] (reset! (.linkProb ^InstanceState (.instanceState this)) newval))
 (defn -domLinkProb [this] (Interval. 0.0 1.0))
 (defn -getTranStddev ^double [^Sim this] @(.tranStddev ^InstanceState (.instanceState this)))
 (defn -setTranStddev [^Sim this ^double newval] (reset! (.tranStddev ^InstanceState (.instanceState this)) newval))
-(defn -domTranStddev [this] (Interval. 0.0 slider-max-tran-stddev))
+(defn -domTranStddev [this] (Interval. 0.0 ^double slider-max-tran-stddev))
 (defn -getGlobalInterlocMean ^double [^Sim this] @(.globalInterlocMean ^InstanceState (.instanceState this)))
 (defn -setGlobalInterlocMean [^Sim this ^double newval] 
   (let [^InstanceState istate (.instanceState this)]
     (reset! (.globalInterlocMean istate) newval)    ; store it so that UI can display its current value
     (when-let [^Poisson poisson @(.poisson istate)] ; avoid npe: poisson isn't created until start is run (at which point it will be init'ed with value of globalInterlocMean)
       (.setMean poisson newval))))                  ; allows changing value during the middle of a run.
-(defn -domGlobalInterlocMean [this] (Interval. 0.0 slider-max-global-interloc-mean)) ; Poisson dist mean: how many indivs each person talks to from entire pop (including neighbors).
+(defn -domGlobalInterlocMean [this] (Interval. 0.0 ^double slider-max-global-interloc-mean)) ; Poisson dist mean: how many indivs each person talks to from entire pop (including neighbors).
 (defn -getSuccessStddev ^double [^Sim this] @(.successStddev ^InstanceState (.instanceState this)))
 (defn -setSuccessStddev [^Sim this ^double newval] (reset! (.successStddev ^InstanceState (.instanceState this)) newval))
-(defn -domSuccessStddev [this] (Interval. 0.0 slider-max-success-stddev))
+(defn -domSuccessStddev [this] (Interval. 0.0 ^double slider-max-success-stddev))
 (defn -getSuccessMean ^double [^Sim this] @(.successMean ^InstanceState (.instanceState this)))
 (defn -setSuccessMean [^Sim this ^double newval] (reset! (.successMean ^InstanceState (.instanceState this)) newval))
 (defn -domSuccessMean [this] (Interval. -1.0 1.0)) 
@@ -417,7 +419,7 @@
             ^Normal gaussian @(.gaussian istate)
             ^double stddev @(.successStddev istate)
             ^double mean @(.successMean istate)]
-        (set! success (add-noise gaussian mean stddev (calc-success relig neighbors)))))
+        (set! success (add-noise gaussian mean stddev (calc-success relig restofcommunity)))))
   Oriented2D ; display pointer in GUI
     (orientation2D [this] (+ (/ Math/PI 2) (* Math/PI success))) ; pointer goes from down (=0) to up (=1)
   Object
@@ -425,31 +427,56 @@
 
 ;;; Runtime functions:
 
+;; passing my-relig and restofcommunity is slightly faster since they're already available in update-success!
+(defn calc-success
+  ^double [^double my-relig ^Collection indivs]
+  (relig-to-success
+    (/ (sum-relig my-relig indivs) (inc (count indivs))))) ; inc to count my-relig as well
+
+;; This version uses a threshold function.  In BaliPlus.nlogo, I sometimes use a threshold function for relig-effect,
+;; which calculates an effect on success from relig.  That's similar to this function.  However, in BaliPlus, there is
+;; *also* an implicit threshold-ey function, it appears, based on the relig values of neighbors several steps away,
+;; since harvest (success) is affected by whether they coordinate their crop patterns.  This success function combines
+;; both effects.
+(defn relig-to-success
+  "Maps (averaged) relig value to a success value."
+  ^double [^double relig]
+  (if (>= relig success-threshold) 1.0 0.0))
+
+;; NOTE this means that e.g. if indiv is isolated, then when it happens to get high relig, it will also have high success.  Is that realistic?
+;(defn old-old-calc-success
+;  "Returns the average of relig values of a collection of indivs and
+;  one more indiv, who has relig value init-value.  i.e. the sum of all
+;  these values is divided by (count indivs) + 1."
+;  ^double [^double init-value indivs]
+;  (/ (sum-relig init-value indivs) 
+;     (inc (count indivs))))
+
 (defn add-relig 
   "Add's indiv's relig value to acc.  Designed for use with reduce."
   [^double acc ^Indiv indiv]
   (+ acc ^double (getRelig indiv)))
-
-(defn add-success 
-  "Add's indiv's success value to acc.  Designed for use with reduce."
-  [^double acc ^Indiv indiv]
-  (+ acc ^double (getSuccess indiv)))
 
 (def sum-relig
   "Given a double initial value and a collection of indivs, sums the relig 
   values of indivs along with initial value.  Suitable for use with reduce."
   (partial reduce add-relig))
 
-; old version of sum-relig:
-; (def sum-relig
-;  [^double init-value indivs]
-;  (let [add-relig (fn [^double acc ^Indiv indiv] (+ acc ^double (getRelig indiv)))]
-;    (reduce add-relig init-value indivs)))
+(defn add-success 
+  "Add's indiv's success value to acc.  Designed for use with reduce."
+  [^double acc ^Indiv indiv]
+  (+ acc ^double (getSuccess indiv)))
 
 (def sum-success
   "Given a double initial value and a collection of indivs, sums the success 
   values of indivs along with initial value.  Suitable for use with reduce."
   (partial reduce add-success))
+
+;; nextGaussian has mean 0 and stddev 1, I believe
+(defn add-noise
+ "Add Normal noise with stddev to value, clipping to extrema 0.0 and 1.0."
+  ^double [^Normal gaussian ^double mean ^double stddev ^double value]
+  (max 0.0 (min 1.0 (+ value ^double (.nextDouble gaussian mean stddev)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Shuffling/sampling functions
@@ -487,7 +514,7 @@
 
 ;; Faster than Clojure's shuffle, at least for pops of size 200 or so
 (defn bag-shuffle
-  [rng coll]
+  [^MersenneTwisterFast rng ^Collection coll]
   (let [bag (sim.util.Bag. coll)]
     (.shuffle bag rng)
     bag))
@@ -501,7 +528,7 @@
 ;; IS THIS A FISHER-YATES(KNUTH) SHUFFLE?
 ;; Excellent on small samples.  Slow on large samples. (take-rand5 in notinuse/Shuffle.clj)
 ;; from https://gist.github.com/pepijndevos/805747, by amalloy, with small mod by Marshall
-(defn take-rand [rng nr coll]
+(defn take-rand [^MersenneTwisterFast rng nr coll]
   (take nr
         ((fn shuffle [coll]
            (lazy-seq
@@ -512,14 +539,10 @@
                          (shuffle (pop! (assoc! coll n (get coll (dec c)))))))))))
            (transient coll))))
 
-
-
-;; Can I avoid repeated accesses to the same field, caching them?  Does it matter?
-;; 
 ;; Note that the analogous procedure in LKJPlus.nlogo, find-best, uses NetLogo's ask, which means
 ;; that subaks are always compared in random order.  In effect they're shuffled before the comparison
 ;; process starts.
-;;
+;; Can I avoid repeated accesses to the same field, caching them?  Does it matter?
 (defn choose-most-successful
   "Given a collection of Indiv's, returns the one with the greatest success, or
   nil if the collection is empty.  NOTE if there are ties, this will always
@@ -537,22 +560,6 @@
     (reduce compare-success models)))
     ;(reduce compare-success (take-rand3 rng (count models) models))))
 
-;; TODO note this means that e.g. if indiv is isolated, then when it happens to get high relig, it will also have high success.  Is that realistic?
-(defn calc-success
-  "Returns the average of relig values of a collection of indivs and
-  one more indiv, who has relig value init-value.  i.e. the sum of all
-  these values is divided by (count indivs) + 1."
-  ^double [^double init-value indivs]
-  (/ (sum-relig init-value indivs) 
-     (inc (count indivs))))
-
-;; TODO THIS IS NOT RIGHT.  MERELY MULTIPLYING BY STDDEV DOESN'T GIVE YOU A PROBABILITY DIST, SINCE THE INNER SD PARAM IS UNMODIFIED.
-;; nextGaussian has mean 0 and stddev 1, I believe
-(defn add-noise
- "Add Normal noise with stddev to value, clipping to extrema 0.0 and 1.0."
-  ^double [^Normal gaussian ^double mean ^double stddev ^double value]
-  (max 0.0 (min 1.0 (+ value ^double (.nextDouble gaussian mean stddev)))))
-
 ;;; Initialization functions:
 
 (defn make-indiv
@@ -569,7 +576,6 @@
       []                  ; restofcommunity
       []                  ; restofpop
       nil)))              ; prevspeaker
-
 
 (defn binomial-link-indivs!
   "For each pair of indivs, with probability prob, make them each others' neighbors.
