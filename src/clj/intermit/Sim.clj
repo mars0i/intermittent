@@ -78,7 +78,7 @@
 (declare ;; constructor functions defined by deftype or defrecord:
          ->InstanceState ->Indiv ->Community
          ;; method functions defined by defprotocol or definterface:
-         getId getSuccess getRelig getNeighbors get-restofpop get-prev-speaker add-neighbor! set-restofpop! copy-relig! update-relig! update-success! get-members
+         getId getSuccess getRelig getNeighbors get-rest-of-pop get-prev-speaker add-neighbor! set-rest-of-community! set-rest-of-pop! copy-relig! update-relig! update-success! get-members
          ;; regular functions defined by defn:
          remove-if-identical -init-instance-state -getNumCommunities -setNumCommunities -domNumCommunities -getIndivsPerCommunity -setIndivsPerCommunity -domIndivsPerCommunity 
          -getLinkProb -setLinkProb -domLinkProb -getTranStddev -setTranStddev -domTranStddev -getGlobalInterlocMean -setGlobalInterlocMean -domGlobalInterlocMean -getSuccessStddev 
@@ -362,10 +362,12 @@
   (getSuccess [this])   
   (getRelig [this])     
   (getNeighbors [this]) 
-  (get-restofpop [this]) 
+  (get-rest-of-community [this]) 
+  (get-rest-of-pop [this]) 
   (get-prev-speaker [this])
   (add-neighbor! [this newval])
-  (set-restofpop! [this newval])
+  (set-rest-of-community! [this newval])
+  (set-rest-of-pop! [this newval])
   (copy-relig! [this sim])
   (update-relig! [this])
   (update-success! [this sim]))
@@ -375,6 +377,7 @@
                 ^:volatile-mutable relig 
                 ^:volatile-mutable newrelig
                 ^:volatile-mutable neighbors 
+                ^:volatile-mutable restofcommunity
                 ^:volatile-mutable restofpop
                 ^:volatile-mutable prevspeaker]
   IndivP
@@ -382,10 +385,12 @@
     (getSuccess [this] success)
     (getRelig [this] relig)
     (getNeighbors [this] neighbors)
-    (get-restofpop [this] restofpop)
+    (get-rest-of-community [this] restofcommunity)
+    (get-rest-of-pop [this] restofpop)
     (get-prev-speaker [this] prevspeaker)
     (add-neighbor! [this new-neighbor] (set! neighbors (conj neighbors new-neighbor)))
-    (set-restofpop! [this indivs] (set! restofpop indivs))
+    (set-rest-of-community! [this indivs] (set! restofcommunity indivs))
+    (set-rest-of-pop! [this indivs] (set! restofpop indivs))
     (copy-relig! [this sim-state]
       "If there is a neighbor or other interlocutor who is more successful
       than I am, copy the relig value of the best such neighbor into my newrelig."
@@ -457,7 +462,7 @@
   excluding me.  (The mean for the Poisson distribution is stored in the
   poisson object.)"
   [^MersenneTwisterFast rng ^Poisson poisson ^Indiv me]
-  (let [restofpop (get-restofpop me)
+  (let [restofpop (get-rest-of-pop me)
         size (count restofpop)
         rand-num (.nextInt poisson)
         num-to-choose (if (< rand-num size) rand-num size)] ; When Poisson mean is large, result may be larger than number of indivs.
@@ -561,8 +566,9 @@
       relig               ; relig
       relig               ; newrelig (need to repeat value so it's there until relig gets a new value from someone else)
       []                  ; neighbors
+      []                  ; restofcommunity
       []                  ; restofpop
-      nil)))               ; prevspeaker
+      nil)))              ; prevspeaker
 
 
 (defn binomial-link-indivs!
@@ -636,10 +642,12 @@
 (defn make-community-of-indivs
   "Make a community with size number of indivs in it."
   [sim size]
-  (let [indivs  (vec (repeatedly size #(make-indiv sim))) ; it's short; don't wait for late-realization bugs.
+  (let [indivs (vec (repeatedly size #(make-indiv sim))) ; it's short; don't wait for late-realization bugs.
         rng (.random sim)
         link-style-idx @(.linkStyleIdx (.instanceState sim))]
     (link-indivs! link-style-idx rng @(.linkProb (.instanceState sim)) indivs)
+    (doseq [indiv indivs] 
+      (set-rest-of-community! indiv (vec (remove-if-identical indiv indivs))))
     (->Community (str (gensym "c")) indivs)))
 
 (defn make-communities-into-pop!
@@ -648,5 +656,5 @@
   [communities]
   (let [population (vec (mapcat get-members communities))]
     (doseq [indiv population]
-      (set-restofpop! indiv (vec (remove-if-identical indiv population))))
+      (set-rest-of-pop! indiv (vec (remove-if-identical indiv population))))
     population))
