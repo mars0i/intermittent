@@ -59,6 +59,9 @@
                         [getSuccessMean [] double]
                         [setSuccessMean [double] void]
                         [domSuccessMean [] java.lang.Object]
+                        [getSuccessThreshold [] double]
+                        [setSuccessThreshold [double] void]
+                        [domSuccessThreshold [] java.lang.Object]
                         [getReligDistribution [] "[D" ]
                         [getMeanReligDistribution [] "[D" ]
                         [getMeanReligTimeSeries [] "[Lsim.util.Double2D;"]
@@ -98,9 +101,9 @@
 (def initial-success-stddev 2.0)
 (def initial-success-mean 0.0)
 (def initial-link-style-idx 1) ; This is an index into link-style-names and link-style-fns, defined below.
+(def initial-success-threshold 0.90) ; used by relig-to-success, which is used by calc-success
 ;; (We can't put link-style-fns here; eval'ing them at this point produces nothing.)
 
-(def success-threshold 0.85) ; used by relig-to-success, which is used by calc-success
 
 (def slider-max-num-communities 50)
 (def slider-max-indivs-per-community 50)
@@ -128,6 +131,7 @@
                         globalInterlocMean ; mean number of interlocutors from global pop
                         successStddev
                         successMean
+                        successThreshold
                         ; runtime storage slots:
                         communities             ; holds the communities
                         population              ; holds all individuals
@@ -147,6 +151,7 @@
                           (atom initial-global-interloc-mean)
                           (atom initial-success-stddev)
                           (atom initial-success-mean)
+                          (atom initial-success-threshold)
                           (atom nil)   ; communities
                           (atom nil)   ; population
                           (atom nil)   ; poisson
@@ -180,6 +185,9 @@
 (defn -getSuccessMean ^double [^Sim this] @(.successMean ^InstanceState (.instanceState this)))
 (defn -setSuccessMean [^Sim this ^double newval] (reset! (.successMean ^InstanceState (.instanceState this)) newval))
 (defn -domSuccessMean [this] (Interval. -1.0 1.0)) 
+(defn -getSuccessThreshold ^double [^Sim this] @(.successThreshold ^InstanceState (.instanceState this)))
+(defn -setSuccessThreshold [^Sim this ^double newval] (reset! (.successThreshold ^InstanceState (.instanceState this)) newval))
+(defn -domSuccessThreshold [this] (Interval. 0.0 1.0)) 
 
 ;; We set the function that decides how to link nodes using MASON's popup menu functionality,
 ;; which uses a mapping between strings in an array and their indexes.  It's the string that's
@@ -291,7 +299,7 @@
   [^Sim sim]
   (let [istate (.instanceState sim)]
     (pp/cl-format true
-                  "~ax~a indivs, link style = ~a, link prob (if relevant) = ~a, tran stddev = ~a, global interlocutor mean = ~a, success stddev = ~a, success mean = ~a~%"
+                  "~ax~a indivs, link style = ~a, link prob (if relevant) = ~a, tran stddev = ~a, global interlocutor mean = ~a, succ stddev = ~a, succ mean = ~a, succ threshold = ~a~%"
                   @(.numCommunities istate)
                   @(.indivsPerCommunity istate)
                   (link-style-names @(.linkStyleIdx istate))
@@ -299,7 +307,8 @@
                   @(.tranStddev istate)
                   @(.globalInterlocMean istate)
                   @(.successStddev istate)
-                  @(.successMean istate))))
+                  @(.successMean istate)
+                  @(.successThreshold istate))))
 
 ;; Var to pass info from main to start.  Must be a better, proper, way.  Really a big kludge.
 ;; Note this is a "static" var--it's in the class, so to speak, and not in the instance (i.e. not in instanceState)
@@ -418,8 +427,9 @@
             ^InstanceState istate (.instanceState sim)
             ^Normal gaussian @(.gaussian istate)
             ^double stddev @(.successStddev istate)
-            ^double mean @(.successMean istate)]
-        (set! success (add-noise gaussian mean stddev (calc-success relig restofcommunity)))))
+            ^double mean @(.successMean istate)
+            ^double threshold @(.successThreshold istate)]
+        (set! success (add-noise gaussian mean stddev (calc-success threshold relig restofcommunity)))))
   Oriented2D ; display pointer in GUI
     (orientation2D [this] (+ (/ Math/PI 2) (* Math/PI success))) ; pointer goes from down (=0) to up (=1)
   Object
@@ -429,9 +439,11 @@
 
 ;; passing my-relig and restofcommunity is slightly faster since they're already available in update-success!
 (defn calc-success
-  ^double [^double my-relig ^Collection indivs]
-  (relig-to-success
-    (/ (sum-relig my-relig indivs) (inc (count indivs))))) ; inc to count my-relig as well
+  "Calculate success of indivual based on its relig value (my-relig) and
+  a collection of indivs, passing r-to-s-param to relig-to-success."
+  ^double [^double r-to-s-param ^double my-relig ^Collection indivs]
+  (relig-to-success r-to-s-param
+                    (/ (sum-relig my-relig indivs) (inc (count indivs))))) ; inc to count my-relig as well
 
 ;; This version uses a threshold function.  In BaliPlus.nlogo, I sometimes use a threshold function for relig-effect,
 ;; which calculates an effect on success from relig.  That's similar to this function.  However, in BaliPlus, there is
@@ -439,8 +451,10 @@
 ;; since harvest (success) is affected by whether they coordinate their crop patterns.  This success function combines
 ;; both effects.
 (defn relig-to-success
-  "Maps (averaged) relig value to a success value."
-  ^double [^double relig]
+  "Maps (averaged) relig value to a success value, using success-threshold
+  to control the mapping.  Current version returns 1 if 
+  relig >= success-thredhold, 0 otherwise."
+  ^double [^double success-threshold ^double relig]
   (if (>= relig success-threshold) 1.0 0.0))
 
 ;; NOTE this means that e.g. if indiv is isolated, then when it happens to get high relig, it will also have high success.  Is that realistic?
