@@ -19,7 +19,7 @@
                  [org.jfree/jfreechart "1.0.17"] ;"mason/libraries/jfreechart-1.0.17.jar"
                  [org.beanshell/bsh "2.0b4"]]    ;"mason/libraries/bsh-2.0b4.jar"
   :source-paths ["src/clj"]
-  :jvm-opts ["-Xmx2g"]
+  :jvm-opts ["-Xmx3g"]
   :main intermit.Sim
   :aot [intermit.Sim intermit.layout intermit.SimWithUI] 
   :profiles {:gui   {:main intermit.SimWithUI} ; execute this with 'lein with-profile gui   run'
