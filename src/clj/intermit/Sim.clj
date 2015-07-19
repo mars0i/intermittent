@@ -336,6 +336,7 @@
                       (clojure.string/join "\n" (concat (map fmt-line options)))))
         ;error-fmt (fn [errors] (str "The following errors occurred while parsing your command:\n\n" (apply str errors))) ; not in use
         {:keys [options arguments errors summary] :as commline} (clojure.tools.cli/parse-opts args cli-options)]
+    (reset! commandline commline)
     (when (:help options)
       (println "Command line options for the Intermittent simulation:")
       (println (usage-fmt cli-options))
@@ -352,9 +353,9 @@
     (when-let [newval (:link-style options)] (.setLinkStyle sim newval))
     (when-let [newval (:link-prob options)] (.setLinkProb sim newval))
     (when-let [newval (:tran-stddev options)] (.setTranStddev sim newval))
-    (when-let [newval (:global-interloc-mean options)] (.setGlobalInterlocMean sim newval))
+    (when-let [newval (:global-interloc-mean options)]  (.setGlobalInterlocMean sim newval))
     (when-let [newval (:success-stddev options)] (.setSuccessStddev sim newval)))
-  (reset! commandline commline)) ; clear it so user can set params in the gui
+  (reset! commandline nil)) ; clear it so user can set params in the gui
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; INDIV: class for individuals who communicate with each other.
