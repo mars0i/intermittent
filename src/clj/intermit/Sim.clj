@@ -384,13 +384,13 @@
   (update-success! [this sim]))
 
 (deftype Indiv [id
-                ^:volatile-mutable success 
-                ^:volatile-mutable relig 
-                ^:volatile-mutable newrelig
-                ^:volatile-mutable neighbors 
-                ^:volatile-mutable restofcommunity
-                ^:volatile-mutable restofpop
-                ^:volatile-mutable prevspeaker]
+                ^:unsynchronized-mutable success 
+                ^:unsynchronized-mutable relig 
+                ^:unsynchronized-mutable newrelig
+                ^:unsynchronized-mutable neighbors 
+                ^:unsynchronized-mutable restofcommunity
+                ^:unsynchronized-mutable restofpop
+                ^:unsynchronized-mutable prevspeaker]
   IndivP
     (getId [this] id)
     (getSuccess [this] success)
