@@ -30,7 +30,7 @@
   (:import [sim.engine Steppable Schedule]
            [sim.portrayal Oriented2D]
            [sim.util Interval Double2D]
-           [sim.util.distribution Poisson Normal]
+           [sim.util.distribution Poisson Normal Beta]
            [ec.util MersenneTwisterFast]
            [java.lang String]
            [java.util Collection]
@@ -53,12 +53,9 @@
                         [getGlobalInterlocMean [] double]     ; i.e. mean # of interlocutors from global population
                         [setGlobalInterlocMean [double] void]
                         [domGlobalInterlocMean [] java.lang.Object]
-                        [getSuccessStddev [] double]
-                        [setSuccessStddev [double] void]
-                        [domSuccessStddev [] java.lang.Object]
-                        [getSuccessMean [] double]
-                        [setSuccessMean [double] void]
-                        [domSuccessMean [] java.lang.Object]
+                        [getSuccessSampleSize [] double]
+                        [setSuccessSampleSize [double] void]
+                        [domSuccessSampleSize [] java.lang.Object]
                         [getSuccessThreshold [] double]
                         [setSuccessThreshold [double] void]
                         [domSuccessThreshold [] java.lang.Object]
@@ -84,10 +81,10 @@
          getId getSuccess getRelig getNeighbors get-rest-of-pop get-prev-speaker add-neighbor! set-rest-of-community! set-rest-of-pop! copy-relig! update-relig! update-success! get-members
          ;; regular functions defined by defn:
          remove-if-identical -init-instance-state -getNumCommunities -setNumCommunities -domNumCommunities -getIndivsPerCommunity -setIndivsPerCommunity -domIndivsPerCommunity 
-         -getLinkProb -setLinkProb -domLinkProb -getTranStddev -setTranStddev -domTranStddev -getGlobalInterlocMean -setGlobalInterlocMean -domGlobalInterlocMean -getSuccessStddev 
-         -setSuccessStddev -domSuccessStddev -getSuccessMean -setSuccessMean -domSuccessMean -getLinkStyle -setLinkStyle -domLinkStyle get-communities get-population 
+         -getLinkProb -setLinkProb -domLinkProb -getTranStddev -setTranStddev -domTranStddev -getGlobalInterlocMean -setGlobalInterlocMean -domGlobalInterlocMean -getSuccessSampleSize 
+         -setSuccessSampleSize -domSuccessSampleSize -getLinkStyle -setLinkStyle -domLinkStyle get-communities get-population 
          -getReligDistribution -getMeanReligTimeSeries -getMeanReligDistribution -getSuccessDistribution -getMeanSuccessTimeSeries -getMeanSuccessDistribution add-relig add-success 
-         bag-shuffle bag-sample take-rand choose-others-from-pop choose-most-successful calc-success add-noise make-indiv binomial-link-indivs! sequential-link-indivs! 
+         bag-shuffle bag-sample take-rand choose-others-from-pop choose-most-successful calc-success normal-noise beta-noise make-indiv binomial-link-indivs! sequential-link-indivs! 
          both-link-indivs! link-style-name-to-idx link-indivs!  make-community-of-indivs make-communities-into-pop! collect-data report-run-params record-commandline-args! 
          set-instance-state-from-commandline! -main -start relig-to-success
          ;; non-functions not defined immediately below:
@@ -98,8 +95,7 @@
 (def initial-link-prob 0.20)
 (def initial-tran-stddev 0.03)
 (def initial-global-interloc-mean 0.1)     ; i.e. Poisson-mean interlocutors from global population
-(def initial-success-stddev 0.1)
-(def initial-success-mean 0.0)
+(def initial-success-sample-size 10.0)
 (def initial-link-style-idx 1) ; This is an index into link-style-names and link-style-fns, defined below.
 (def initial-success-threshold 0.95) ; used by relig-to-success, which is used by calc-success
 ;; (We can't put link-style-fns here; eval'ing them at this point produces nothing.)
@@ -109,7 +105,7 @@
 (def slider-max-indivs-per-community 50)
 (def slider-max-tran-stddev 3.0)
 (def slider-max-global-interloc-mean 200.0)
-(def slider-max-success-stddev 3.0)
+(def slider-max-success-sample-size 50.0)
 
 (defn remove-if-identical
   "Removes from coll any object that's identical to obj."
@@ -129,14 +125,14 @@
                         linkProb
                         tranStddev
                         globalInterlocMean ; mean number of interlocutors from global pop
-                        successStddev
-                        successMean
+                        successSampleSize
                         successThreshold
                         ; runtime storage slots:
                         communities             ; holds the communities
                         population              ; holds all individuals
                         poisson                 ; a Poisson-distribution wrapper
-                        gaussian                ; a Normally-distribution wrapper
+                        gaussian                ; a normally-distribution wrapper
+                        beta                    ; a beta-distribution wrapper
                         meanReligSeries         ; records mean relig values at timestep
                         meanSuccessSeries])     ; records mean success values at timestep
 
@@ -149,13 +145,13 @@
                           (atom initial-link-prob)
                           (atom initial-tran-stddev)
                           (atom initial-global-interloc-mean)
-                          (atom initial-success-stddev)
-                          (atom initial-success-mean)
+                          (atom initial-success-sample-size)
                           (atom initial-success-threshold)
                           (atom nil)   ; communities
                           (atom nil)   ; population
                           (atom nil)   ; poisson
                           (atom nil)   ; gaussian
+                          (atom nil)   ; beta
                           (atom [])    ; meanReligSeries
                           (atom []))]) ; meanSuccessSeries
 
@@ -179,12 +175,9 @@
     (when-let [^Poisson poisson @(.poisson istate)] ; avoid npe: poisson isn't created until start is run (at which point it will be init'ed with value of globalInterlocMean)
       (.setMean poisson newval))))                  ; allows changing value during the middle of a run.
 (defn -domGlobalInterlocMean [this] (Interval. 0.0 ^double slider-max-global-interloc-mean)) ; Poisson dist mean: how many indivs each person talks to from entire pop (including neighbors).
-(defn -getSuccessStddev ^double [^Sim this] @(.successStddev ^InstanceState (.instanceState this)))
-(defn -setSuccessStddev [^Sim this ^double newval] (reset! (.successStddev ^InstanceState (.instanceState this)) newval))
-(defn -domSuccessStddev [this] (Interval. 0.0 ^double slider-max-success-stddev))
-(defn -getSuccessMean ^double [^Sim this] @(.successMean ^InstanceState (.instanceState this)))
-(defn -setSuccessMean [^Sim this ^double newval] (reset! (.successMean ^InstanceState (.instanceState this)) newval))
-(defn -domSuccessMean [this] (Interval. -1.0 1.0)) 
+(defn -getSuccessSampleSize ^double [^Sim this] @(.successSampleSize ^InstanceState (.instanceState this)))
+(defn -setSuccessSampleSize [^Sim this ^double newval] (reset! (.successSampleSize ^InstanceState (.instanceState this)) newval))
+(defn -domSuccessSampleSize [this] (Interval. 0.01 ^double slider-max-success-sample-size)) ; use small non-zero as the min; zero should work, theoretically, but hangs the app and isn't needed.
 (defn -getSuccessThreshold ^double [^Sim this] @(.successThreshold ^InstanceState (.instanceState this)))
 (defn -setSuccessThreshold [^Sim this ^double newval] (reset! (.successThreshold ^InstanceState (.instanceState this)) newval))
 (defn -domSuccessThreshold [this] (Interval. 0.0 1.0)) 
@@ -269,6 +262,7 @@
     ;; Record core data structures and utility states:
     (reset! (.poisson istate) (Poisson. @(.globalInterlocMean istate) (.random this)))
     (reset! (.gaussian istate) (Normal. 0.0 1.0 (.random this))) ; mean and sd here can be overridden later
+    (reset! (.beta istate) (Beta. 0.5 0.5 (.random this))) ; alpha and beta here will be overridden later
     (reset! (.communities istate) communities)
     (reset! (.population istate) population)
     (reset! (.meanReligSeries istate) [])
@@ -299,15 +293,14 @@
   [^Sim sim]
   (let [istate (.instanceState sim)]
     (pp/cl-format true
-                  "~ax~a indivs, link style = ~a, link prob (if relevant) = ~a, tran stddev = ~a, global interlocutor mean = ~a, succ stddev = ~a, succ mean = ~a, succ threshold = ~a~%"
+                  "~ax~a indivs, link style = ~a, link prob (if relevant) = ~a, tran stddev = ~a, global interlocutor mean = ~a, succ sample size = ~a, succ threshold = ~a~%"
                   @(.numCommunities istate)
                   @(.indivsPerCommunity istate)
                   (link-style-names @(.linkStyleIdx istate))
                   @(.linkProb istate)
                   @(.tranStddev istate)
                   @(.globalInterlocMean istate)
-                  @(.successStddev istate)
-                  @(.successMean istate)
+                  @(.successSampleSize istate)
                   @(.successThreshold istate))))
 
 ;; Var to pass info from main to start.  Must be a better, proper, way.  Really a big kludge.
@@ -330,7 +323,7 @@
                      ["-p" "--link-prob <number in [0,1]>" "Probability that each pair of indivs will be linked (for binomial and both)." :parse-fn #(Double. %)]
                      ["-t" "--tran-stddev <non-negative number>" "Standard deviation of Normally distributed noise in relig transmission." :parse-fn #(Double. %)]
                      ["-g" "--global-interloc-mean <non-negative number>" "Mean number of Poisson-distributed interlocutors from entire population" :parse-fn #(Double. %)]
-                     ["-s" "--success-stddev <non-negative number>" "Standard deviation of Normally distributed noise in success calculation" :parse-fn #(Double. %)]]
+                     ["-s" "--success-sample-size <non-negative number>" "\"Sample size\" (alpha + beta) of Beta distributed success" :parse-fn #(Double. %)]]
         usage-fmt (fn [options]
                     (let [fmt-line (fn [[short-opt long-opt desc]] (str short-opt ", " long-opt ": " desc))]
                       (clojure.string/join "\n" (concat (map fmt-line options)))))
@@ -354,7 +347,7 @@
     (when-let [newval (:link-prob options)] (.setLinkProb sim newval))
     (when-let [newval (:tran-stddev options)] (.setTranStddev sim newval))
     (when-let [newval (:global-interloc-mean options)]  (.setGlobalInterlocMean sim newval))
-    (when-let [newval (:success-stddev options)] (.setSuccessStddev sim newval)))
+    (when-let [newval (:success-sample-size options)] (.setSuccessSampleSize sim newval)))
   (reset! commandline nil)) ; clear it so user can set params in the gui
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -418,7 +411,7 @@
                                        (into neighbors ;   (a) neighbors, (b) 0 or more random indivs from entire pop
                                              (choose-others-from-pop rng poisson this)))]
           (when (> (getSuccess best-model) success)     ; is most successful other, better than me?
-            (set! newrelig (add-noise gaussian 0.0 stddev (getRelig best-model)))
+            (set! newrelig (normal-noise gaussian 0.0 stddev (getRelig best-model)))
             (set! prevspeaker best-model)))))
     (update-relig! [this]
       "Copy newrelig to relig."
@@ -426,11 +419,10 @@
     (update-success! [this sim-state]
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
             ^InstanceState istate (.instanceState sim)
-            ^Normal gaussian @(.gaussian istate)
-            ^double stddev @(.successStddev istate)
-            ^double mean @(.successMean istate)
-            ^double threshold @(.successThreshold istate)]
-        (set! success (add-noise gaussian mean stddev (calc-success threshold relig restofcommunity)))))
+            ^Beta beta @(.beta istate)
+            ^double sample-size @(.successSampleSize istate)
+            ^double threshold @(.successThreshold istate)] ;; CURRENTLY UNUSED?
+        (set! success (beta-noise beta sample-size (calc-success threshold relig restofcommunity)))))
   Oriented2D ; display pointer in GUI
     (orientation2D [this] (+ (/ Math/PI 2) (* Math/PI success))) ; pointer goes from down (=0) to up (=1)
   Object
@@ -446,17 +438,20 @@
   (relig-to-success r-to-s-param
                     (/ (sum-relig my-relig indivs) (inc (count indivs))))) ; inc to count my-relig as well
 
+;; DEF IS IN FLUX
+;; OBSOLETE DESCRIPTION:
 ;; This version uses a threshold function.  In BaliPlus.nlogo, I sometimes use a threshold function for relig-effect,
 ;; which calculates an effect on success from relig.  That's similar to this function.  However, in BaliPlus, there is
 ;; *also* an implicit threshold-ey function, it appears, based on the relig values of neighbors several steps away,
 ;; since harvest (success) is affected by whether they coordinate their crop patterns.  This success function combines
 ;; both effects.
 (defn relig-to-success
-  "Maps (averaged) relig value to a success value, using success-threshold
+  "OBSOLETE: Maps (averaged) relig value to a success value, using success-threshold
   to control the mapping.  Current version returns 1 if 
   relig >= success-thredhold, 0 otherwise."
   ^double [^double success-threshold ^double relig]
-  (if (>= relig success-threshold) 1.0 0.0))
+  relig)
+  ;(if (>= relig success-threshold) 1.0 0.0))
 
 ;; NOTE this means that e.g. if indiv is isolated, then when it happens to get high relig, it will also have high success.  Is that realistic?
 ;(defn old-old-calc-success
@@ -488,10 +483,17 @@
   (partial reduce add-success))
 
 ;; nextGaussian has mean 0 and stddev 1, I believe
-(defn add-noise
- "Add Normal noise with stddev to value, clipping to extrema 0.0 and 1.0."
+(defn normal-noise
+ "Add normally distributed noise with stddev to value, clipping to extrema 0.0 and 1.0."
   ^double [^Normal gaussian ^double mean ^double stddev ^double value]
   (max 0.0 (min 1.0 (+ value ^double (.nextDouble gaussian mean stddev)))))
+
+(defn beta-noise
+ "Generate a beta-distributed value with given mean, and \"sample-size\", i.e.
+ the sum of the usual alpha and beta parameters to a Beta distribution
+ [alpha = sample-size * mean, and beta = sample-size * (1 - mean)]."
+  ^double [^Beta beta-dist ^double sample-size ^double mean]
+  (.nextDouble beta-dist (* mean sample-size) (* (- 1 mean) sample-size)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Shuffling/sampling functions
