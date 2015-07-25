@@ -1,2 +1,2 @@
 #!/bin/sh
-lein with-profile gui run "$@"
+lein with-profile gui run -- "$@"
