@@ -28,6 +28,8 @@ Show MASON's help:
 
 	lein run -- -help
 
+###### Without GUI:
+
 Run simulation:
 
 	lein run
@@ -37,6 +39,16 @@ or
 	lein run -- <Intermittent-and-MASON-options>
 
 (Parameters before `--` will be passed to Leiningen.)
+
+###### With GUI:
+
+	src/scripts/leingui <Intermittent-and-MASON-options>
+
+which just executes:
+
+	lein with-profile gui run
+
+In either case you can pass command line options as indicated above.
 
 
 #### GUI from the Clojure REPL:
