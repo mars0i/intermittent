@@ -37,7 +37,7 @@
   ([p mn samp-sz] 
    (beta-plot p (calc-alpha mn samp-sz) (calc-beta mn samp-sz))))
 
-(defn calc-samp-size
+(defn calc-sample-size
   [mn variance]
   (let [mean-product (* mn (- 1 mn))]
     (when (>= variance mean-product)
@@ -51,6 +51,6 @@
   "Display and return a plot of a beta distribution with given mean and 
   variance.  Variance must be less than (mn * (1 - mn))."
   ([mn variance]
-   (beta-plot* mn (calc-samp-size mn variance)))
+   (beta-plot* mn (calc-sample-size mn variance)))
   ([p mn variance]
-   (beta-plot* p mn (calc-samp-size mn variance))))
+   (beta-plot* p mn (calc-sample-size mn variance))))
