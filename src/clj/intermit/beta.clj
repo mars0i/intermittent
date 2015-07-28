@@ -24,7 +24,7 @@
      (ic/view p)
      (beta-plot p alpha beta)))
   ([p alpha beta]
-   (let [xs (range 0 1 0.001)]
+   (let [xs (range 0.001 1 0.001)] ; Start the range above 0, which would map to Infinity when alpha < 1. Infinity confuses xy-plot.  Note there may be an extra value that's just below 1.
      (ich/add-lines p xs (ist/pdf-beta xs :alpha alpha :beta beta)))))
 
 (defn beta-plot*
