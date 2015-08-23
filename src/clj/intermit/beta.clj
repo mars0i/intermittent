@@ -15,6 +15,11 @@
 ;; the chart becomes non-sensical; the y ticks disappear, and nothing is plotted.
 ;; You can still make a plot e.g. with R in this situation.
 
+;; Other useful things:
+;; (use '[incanter.pdf])
+;; (save-pdf xyp filename)
+;; where xyp is a plot object.
+
 ;; Used by multiple functions
 (def +xs+ (range 0.001 1 0.001)) ; Start the range above 0, which would map to Infinity when alpha < 1. Infinity confuses xy-plot.  Note there may be an extra value that's just below 1.
 
@@ -49,14 +54,17 @@
 
 (defn beta-plots*
   "Display a range of beta distributions with the same sample-size but 
-  different means using beta-plot*.  Returns their variances, in order."
+  different means using beta-plot*.  Returns a sequence containing the 
+  plot object followed by the distributions' variances, in order."
   [samp-sz]
   (let [xyp (ich/xy-plot)
         mns (rest (range 0 1 1/20))]
+    (ich/set-title xyp (str "Beta distributions with sample size = " samp-sz)) ; xy-plot's :title option doesn't seem to work
     (ic/view xyp)
     (doseq [mn mns]
       (beta-plot* xyp mn samp-sz))
-    (map #(variance* (double %) samp-sz) mns)))
+    (cons xyp
+          (map #(variance* (double %) samp-sz) mns))))
 
 (defn beta-plots**
   "Display a range of beta distributions with the same variance different
