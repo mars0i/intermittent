@@ -432,7 +432,7 @@
 
 ;; passing my-relig and restofcommunity is slightly faster since they're already available in update-success!
 (defn calc-success
-  "Calculate success of indivual based on its relig value (my-relig) and
+  "Calculate success of individual based on its relig value (my-relig) and
   a collection of indivs, passing r-to-s-param to relig-to-success."
   ^double [^double r-to-s-param ^double my-relig ^Collection indivs]
   (relig-to-success r-to-s-param
