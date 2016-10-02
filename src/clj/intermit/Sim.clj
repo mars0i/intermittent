@@ -24,7 +24,7 @@
 
 ;; Put gen-class Sim first so we can type-hint methods in Indiv etc.
 ;; But put intermit.Sim's methods at end, so we can type-hint references to Indiv, etc. in them.
-(ns intermit.Yow
+(ns intermit.Sim
   (:require [clojure.tools.cli :as cli]
             [clojure.pprint :as pp])
   (:import [sim.engine Steppable Schedule]
