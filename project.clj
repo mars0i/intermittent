@@ -1,4 +1,4 @@
-(defproject intermittent "0.1.0-SNAPSHOT"
+(defproject intermittent "1.0.0"
   :description "Experiments with intermittent between-group cultural transmission"
   :url "http://example.com/FIXME"
   :license {:name "Gnu General Public License version 3.0"

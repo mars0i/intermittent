@@ -149,7 +149,7 @@
     (.setPortrayalForAll talk-net-portrayal talk-edge-portrayal)
     ;; set up display
     (doto display
-      (.reset )
+      (.reset ) ; REGISTERS PORTRAYALS TO REPAINT EVERY STEP OF SCHEDULE
       (.setBackdrop (Color. 10 10 10)) ; almost black
       (.repaint))))
 
