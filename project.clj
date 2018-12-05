@@ -10,7 +10,7 @@
                    ~(str (System/getenv "HOME") "/dist/mason/" "libraries/portfolio.jar")]
   ;:warn-on-reflection true
   ;:java-source-paths ["src/java"]
-  :dependencies [[org.clojure/clojure "1.10.0-RC2"] ; 1.9.0 spec bug, rejects Java array type names in :genclass
+  :dependencies [[org.clojure/clojure "1.10.0-RC3"] ; 1.9.0 spec bug, rejects Java array type names in :genclass
                  [org.clojure/math.numeric-tower "0.0.4"]
                  [org.clojure/tools.cli "0.3.1"]
                  [org.clojure/data.csv "0.1.2"]
