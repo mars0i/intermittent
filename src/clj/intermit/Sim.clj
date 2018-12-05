@@ -53,9 +53,9 @@
                         [getGlobalInterlocMean [] double]     ; i.e. mean # of interlocutors from global population
                         [setGlobalInterlocMean [double] void]
                         [domGlobalInterlocMean [] java.lang.Object]
-                        [getSuccessSampleSize [] double]
-                        [setSuccessSampleSize [double] void]
-                        [domSuccessSampleSize [] java.lang.Object]
+                        [getSuccessBetaSampleSize [] double]
+                        [setSuccessBetaSampleSize [double] void]
+                        [domSuccessBetaSampleSize [] java.lang.Object]
                         [getSuccessThreshold [] double]
                         [setSuccessThreshold [double] void]
                         [domSuccessThreshold [] java.lang.Object]
@@ -81,8 +81,8 @@
          getId getSuccess getRelig getNeighbors get-rest-of-pop get-prev-speaker add-neighbor! set-rest-of-community! set-rest-of-pop! copy-relig! update-relig! update-success! get-members
          ;; regular functions defined by defn:
          remove-if-identical -init-instance-state -getNumCommunities -setNumCommunities -domNumCommunities -getIndivsPerCommunity -setIndivsPerCommunity -domIndivsPerCommunity 
-         -getLinkProb -setLinkProb -domLinkProb -getTranStddev -setTranStddev -domTranStddev -getGlobalInterlocMean -setGlobalInterlocMean -domGlobalInterlocMean -getSuccessSampleSize 
-         -setSuccessSampleSize -domSuccessSampleSize -getLinkStyle -setLinkStyle -domLinkStyle get-communities get-population 
+         -getLinkProb -setLinkProb -domLinkProb -getTranStddev -setTranStddev -domTranStddev -getGlobalInterlocMean -setGlobalInterlocMean -domGlobalInterlocMean -getSuccessBetaSampleSize 
+         -setSuccessBetaSampleSize -domSuccessBetaSampleSize -getLinkStyle -setLinkStyle -domLinkStyle get-communities get-population 
          -getReligDistribution -getMeanReligTimeSeries -getMeanReligDistribution -getSuccessDistribution -getMeanSuccessTimeSeries -getMeanSuccessDistribution add-relig add-success 
          bag-shuffle bag-sample take-rand choose-others-from-pop choose-most-successful calc-success normal-noise beta-noise make-indiv binomial-link-indivs! sequential-link-indivs! 
          both-link-indivs! link-style-name-to-idx link-indivs!  make-community-of-indivs make-communities-into-pop! collect-data report-run-params record-commandline-args! 
@@ -95,7 +95,7 @@
 (def initial-link-prob 0.20)
 (def initial-tran-stddev 0.03)
 (def initial-global-interloc-mean 0.1)     ; i.e. Poisson-mean interlocutors from global population
-(def initial-success-sample-size 10.0)
+(def initial-success-beta-sample-size 10.0)
 (def initial-link-style-idx 1) ; This is an index into link-style-names and link-style-fns, defined below.
 (def initial-success-threshold 0.95) ; used by relig-to-success, which is used by calc-success
 ;; (We can't put link-style-fns here; eval'ing them at this point produces nothing.)
@@ -105,7 +105,7 @@
 (def slider-max-indivs-per-community 50)
 (def slider-max-tran-stddev 3.0)
 (def slider-max-global-interloc-mean 200.0)
-(def slider-max-success-sample-size 50.0)
+(def slider-max-success-beta-sample-size 50.0)
 
 (defn remove-if-identical
   "Removes from coll any object that's identical to obj."
@@ -125,7 +125,7 @@
                         linkProb
                         tranStddev
                         globalInterlocMean ; mean number of interlocutors from global pop
-                        successSampleSize
+                        successBetaSampleSize
                         successThreshold
                         ; runtime storage slots:
                         communities             ; holds the communities
@@ -145,7 +145,7 @@
                           (atom initial-link-prob)
                           (atom initial-tran-stddev)
                           (atom initial-global-interloc-mean)
-                          (atom initial-success-sample-size)
+                          (atom initial-success-beta-sample-size)
                           (atom initial-success-threshold)
                           (atom nil)   ; communities
                           (atom nil)   ; population
@@ -175,9 +175,9 @@
     (when-let [^Poisson poisson @(.poisson istate)] ; avoid npe: poisson isn't created until start is run (at which point it will be init'ed with value of globalInterlocMean)
       (.setMean poisson newval))))                  ; allows changing value during the middle of a run.
 (defn -domGlobalInterlocMean [this] (Interval. 0.0 ^double slider-max-global-interloc-mean)) ; Poisson dist mean: how many indivs each person talks to from entire pop (including neighbors).
-(defn -getSuccessSampleSize ^double [^Sim this] @(.successSampleSize ^InstanceState (.instanceState this)))
-(defn -setSuccessSampleSize [^Sim this ^double newval] (reset! (.successSampleSize ^InstanceState (.instanceState this)) newval))
-(defn -domSuccessSampleSize [this] (Interval. 0.01 ^double slider-max-success-sample-size)) ; use small non-zero as the min; zero should work, theoretically, but hangs the app and isn't needed.
+(defn -getSuccessBetaSampleSize ^double [^Sim this] @(.successBetaSampleSize ^InstanceState (.instanceState this)))
+(defn -setSuccessBetaSampleSize [^Sim this ^double newval] (reset! (.successBetaSampleSize ^InstanceState (.instanceState this)) newval))
+(defn -domSuccessBetaSampleSize [this] (Interval. 0.01 ^double slider-max-success-beta-sample-size)) ; use small non-zero as the min; zero should work, theoretically, but hangs the app and isn't needed.
 (defn -getSuccessThreshold ^double [^Sim this] @(.successThreshold ^InstanceState (.instanceState this)))
 (defn -setSuccessThreshold [^Sim this ^double newval] (reset! (.successThreshold ^InstanceState (.instanceState this)) newval))
 (defn -domSuccessThreshold [this] (Interval. 0.0 1.0)) 
@@ -293,14 +293,14 @@
   [^Sim sim]
   (let [istate (.instanceState sim)]
     (pp/cl-format true
-                  "~ax~a indivs, link style = ~a, link prob (if relevant) = ~a, tran stddev = ~a, global interlocutor mean = ~a, succ sample size = ~a, succ threshold = ~a~%"
+                  "~ax~a indivs, link style = ~a, link prob (if relevant) = ~a, tran stddev = ~a, global interlocutor mean = ~a, succ beta sample size = ~a, succ threshold = ~a~%"
                   @(.numCommunities istate)
                   @(.indivsPerCommunity istate)
                   (link-style-names @(.linkStyleIdx istate))
                   @(.linkProb istate)
                   @(.tranStddev istate)
                   @(.globalInterlocMean istate)
-                  @(.successSampleSize istate)
+                  @(.successBetaSampleSize istate)
                   @(.successThreshold istate))))
 
 ;; Var to pass info from main to start.  Must be a better, proper, way.  Really a big kludge.
@@ -323,7 +323,7 @@
                      ["-p" "--link-prob <number in [0,1]>" "Probability that each pair of indivs will be linked (for binomial and both)." :parse-fn #(Double. %)]
                      ["-t" "--tran-stddev <non-negative number>" "Standard deviation of Normally distributed noise in relig transmission." :parse-fn #(Double. %)]
                      ["-g" "--global-interloc-mean <non-negative number>" "Mean number of Poisson-distributed interlocutors from entire population" :parse-fn #(Double. %)]
-                     ["-s" "--success-sample-size <non-negative number>" "\"Sample size\" (alpha + beta) of Beta distributed success" :parse-fn #(Double. %)]]
+                     ["-s" "--success-beta-sample-size <non-negative number>" "\"Sample size\" (alpha + beta) of Beta distributed success" :parse-fn #(Double. %)]]
         usage-fmt (fn [options]
                     (let [fmt-line (fn [[short-opt long-opt desc]] (str short-opt ", " long-opt ": " desc))]
                       (clojure.string/join "\n" (concat (map fmt-line options)))))
@@ -347,7 +347,7 @@
     (when-let [newval (:link-prob options)] (.setLinkProb sim newval))
     (when-let [newval (:tran-stddev options)] (.setTranStddev sim newval))
     (when-let [newval (:global-interloc-mean options)]  (.setGlobalInterlocMean sim newval))
-    (when-let [newval (:success-sample-size options)] (.setSuccessSampleSize sim newval)))
+    (when-let [newval (:success-beta-sample-size options)] (.setSuccessBetaSampleSize sim newval)))
   (reset! commandline nil)) ; clear it so user can set params in the gui
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -420,9 +420,9 @@
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
             ^InstanceState istate (.instanceState sim)
             ^Beta beta @(.beta istate)
-            ^double sample-size @(.successSampleSize istate)
+            ^double beta-sample-size @(.successBetaSampleSize istate)
             ^double threshold @(.successThreshold istate)] ;; CURRENTLY UNUSED?
-        (set! success (beta-noise beta sample-size (calc-success threshold relig restofcommunity)))))
+        (set! success (beta-noise beta beta-sample-size (calc-success threshold relig restofcommunity)))))
   Oriented2D ; display pointer in GUI
     (orientation2D [this] (+ (/ Math/PI 2) (* Math/PI success))) ; pointer goes from down (=0) to up (=1)
   Object
