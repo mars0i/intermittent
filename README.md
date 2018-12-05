@@ -111,6 +111,8 @@ For example, you might want to clear out accumulated history:
 worked out the right classpath specifications for all of the libraries
 that MASON needs.)
 
+(Code note: beta.clj is not used by intermittran; it's a utility for
+plotting beta distributions independent of intermittran.)
 
 ## License
 
