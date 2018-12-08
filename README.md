@@ -96,6 +96,7 @@ For example, you might want to clear out accumulated history:
 	intermit.Sim=> (reset! (.meanReligSeries data) [])
 	intermit.Sim=> (reset! (.meanSuccessSeries data) [])
 
+See also doc/repl.md .
 
 #### Without GUI in the Clojure REPL:
 
@@ -111,8 +112,12 @@ For example, you might want to clear out accumulated history:
 worked out the right classpath specifications for all of the libraries
 that MASON needs.)
 
-(Code note: beta.clj is not used by intermittran; it's a utility for
-plotting beta distributions independent of intermittran.)
+## Code notes:
+
+beta.clj is not used by intermittran; it's a utility for plotting beta
+distributions independent of intermittran.
+
+See doc/code.md for other notes on the code.
 
 ## License
 
