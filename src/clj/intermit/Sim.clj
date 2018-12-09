@@ -419,9 +419,10 @@
     (update-success! [this sim-state]
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
             ^InstanceState istate (.instanceState sim)
+            ^double threshold @(.successThreshold istate) ;; CURRENTLY UNUSED?
+	    ;; TODO REPLACE THE FOLLOWING THREE LINES WITH GENERICIZED VERSIONS:
             ^Beta beta @(.beta istate)
-            ^double beta-sample-size @(.successBetaSampleSize istate)
-            ^double threshold @(.successThreshold istate)] ;; CURRENTLY UNUSED?
+            ^double beta-sample-size @(.successBetaSampleSize istate)]
         (set! success (beta-noise beta beta-sample-size (calc-success threshold relig restofcommunity)))))
   Oriented2D ; display pointer in GUI
     (orientation2D [this] (+ (/ Math/PI 2) (* Math/PI success))) ; pointer goes from down (=0) to up (=1)
