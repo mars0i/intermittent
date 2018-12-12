@@ -94,7 +94,7 @@
 (def initial-indivs-per-community 15)
 (def initial-link-prob 0.20)
 (def initial-tran-stddev 0.03)
-(def initial-global-interloc-mean 0.1)     ; i.e. Poisson-mean interlocutors from global population
+(def initial-global-interloc-mean 0.01)     ; i.e. Poisson-mean interlocutors from global population
 (def initial-success-beta-sample-size 10.0)
 (def initial-link-style-idx 1) ; This is an index into link-style-names and link-style-fns, defined below.
 (def initial-success-threshold 0.95) ; used by relig-to-success, which is used by calc-success
