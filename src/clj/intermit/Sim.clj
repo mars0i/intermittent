@@ -30,7 +30,7 @@
   (:import [sim.engine Steppable Schedule]
            [sim.portrayal Oriented2D]
            [sim.util Interval Double2D]
-           [sim.util.distribution Poisson Normal Beta]
+           [sim.util.distribution Poisson Normal Beta AbstractDistribution]
            [ec.util MersenneTwisterFast]
            [java.lang String]
            [java.util Collection]
@@ -84,7 +84,7 @@
          -getLinkProb -setLinkProb -domLinkProb -getTranStddev -setTranStddev -domTranStddev -getGlobalInterlocMean -setGlobalInterlocMean -domGlobalInterlocMean -getSuccessBetaSampleSize 
          -setSuccessBetaSampleSize -domSuccessBetaSampleSize -getLinkStyle -setLinkStyle -domLinkStyle get-communities get-population 
          -getReligDistribution -getMeanReligTimeSeries -getMeanReligDistribution -getSuccessDistribution -getMeanSuccessTimeSeries -getMeanSuccessDistribution add-relig add-success 
-         bag-shuffle bag-sample take-rand choose-others-from-pop choose-most-successful calc-success normal-noise beta-noise make-indiv binomial-link-indivs! sequential-link-indivs! 
+         bag-shuffle bag-sample take-rand choose-others-from-pop choose-most-successful calc-success normal-noise success-noise make-indiv binomial-link-indivs! sequential-link-indivs! 
          both-link-indivs! link-style-name-to-idx link-indivs!  make-community-of-indivs make-communities-into-pop! collect-data report-run-params record-commandline-args! 
          set-instance-state-from-commandline! -main -start relig-to-success
          ;; non-functions not defined immediately below:
@@ -377,6 +377,9 @@
   (update-relig! [this])
   (update-success! [this sim]))
 
+;; NOTE This is the core of the interesting stuff in the model.
+;; An Indiv is the equivalent of a subak in BaliPlus, and this
+;; is where the top-level indiv-interaction functions are.
 (deftype Indiv [id
                 ^:unsynchronized-mutable success 
                 ^:unsynchronized-mutable relig 
@@ -396,6 +399,7 @@
     (add-neighbor! [this new-neighbor] (set! neighbors (conj neighbors new-neighbor)))
     (set-rest-of-community! [this indivs] (set! restofcommunity indivs))
     (set-rest-of-pop! [this indivs] (set! restofpop indivs))
+    ;; Religious cultural transmission:
     (copy-relig! [this sim-state]
       "If there is a neighbor or other interlocutor who is more successful
       than I am, copy the relig value of the best such neighbor into my newrelig."
@@ -416,6 +420,7 @@
     (update-relig! [this]
       "Copy newrelig to relig."
       (set! relig newrelig)) ; note that relig may be unchanged; then this is wasted computation
+    ;; Success determination (equivalent to harvest in BaliPlus):
     (update-success! [this sim-state]
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
             ^InstanceState istate (.instanceState sim)
@@ -423,7 +428,7 @@
 	    ;; TODO REPLACE THE FOLLOWING THREE LINES WITH GENERICIZED VERSIONS:
             ^Beta beta @(.beta istate)
             ^double beta-sample-size @(.successBetaSampleSize istate)]
-        (set! success (beta-noise beta beta-sample-size (calc-success threshold relig restofcommunity)))))
+        (set! success (success-noise beta beta-sample-size (calc-success threshold relig restofcommunity)))))
   Oriented2D ; display pointer in GUI
     (orientation2D [this] (+ (/ Math/PI 2) (* Math/PI success))) ; pointer goes from down (=0) to up (=1)
   Object
@@ -489,12 +494,12 @@
   ^double [^Normal gaussian ^double mean ^double stddev ^double value]
   (max 0.0 (min 1.0 (+ value ^double (.nextDouble gaussian mean stddev)))))
 
-(defn beta-noise
+(defn success-noise
  "Generate a beta-distributed value with given mean, and \"sample-size\", i.e.
  the sum of the usual alpha and beta parameters to a Beta distribution
  [alpha = sample-size * mean, and beta = sample-size * (1 - mean)]."
-  ^double [^Beta beta-dist ^double sample-size ^double mean]
-  (.nextDouble beta-dist (* mean sample-size) (* (- 1 mean) sample-size)))
+  ^double [^AbstractDistribution dist ^double sample-size ^double mean]
+  (.nextDouble dist (* mean sample-size) (* (- 1 mean) sample-size)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Shuffling/sampling functions
