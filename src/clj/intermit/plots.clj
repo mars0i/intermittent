@@ -42,6 +42,8 @@
   (.nextValue pink))
 
 (defn simple-plot
+  "Displays a plot of the values in ys in relation to x values from 0 to
+  the length of ys."
   [ys]
   (let [xs (range (count ys))
         xyp (ich/xy-plot)]
