@@ -4,6 +4,8 @@
 
 ;; Plot beta distributions, with various parameterizations.
 
+;; Also added Niskanen's PinkNoise class.  So this file is misnamed, I guess.
+
 ;; NOTE: This is *not* used by the intermittran simulation
 ;; Intermittran uses the Beta class from MersenneTwisterFast.
 ;; This file, which uses Incanter's pdf-beta, is *just* a utility
@@ -19,15 +21,33 @@
 ;; (save-pdf xyp filename)
 ;; where xyp is a plot object.
 
-(ns intermit.beta
+(ns intermit.plots
   (:require [incanter.core :as ic]
             [incanter.stats :as ist]
-            [incanter.charts :as ich]))
+            [incanter.charts :as ich])
+  (:import PinkNoise))
 
 (declare beta-plot beta-plot* beta-plot** alpha-parm beta-parm sample-size-parm variance variance*)
 
 ;; Used by multiple functions
 (def +xs+ (range 0.001 1 0.001)) ; Start the range above 0, which would map to Infinity when alpha < 1. Infinity confuses xy-plot.  Note there may be an extra value that's just below 1.
+
+;; experimental
+(defn make-pink
+  [alpha poles]
+  (PinkNoise. alpha poles))
+
+;; experimental
+(defn next-pink
+  [pink]
+  (.nextValue pink))
+
+(defn simple-plot
+  [ys]
+  (let [xs (range (count ys))
+        xyp (ich/xy-plot)]
+     (ic/view xyp)
+     (ich/add-lines xyp xs ys)))
 
 (defn beta-plot
   "Display and return a plot of a beta distribution with parameters alpha

@@ -9,12 +9,12 @@
                    ~(str (System/getenv "HOME") "/dist/mason/" "libraries/jmf.jar")
                    ~(str (System/getenv "HOME") "/dist/mason/" "libraries/portfolio.jar")]
   ;:warn-on-reflection true
-  ;:java-source-paths ["src/java"]
+  :java-source-paths ["src/java"]
   :dependencies [[org.clojure/clojure "1.10.0"] ; 1.9.0 spec bug, rejects Java array type names in :genclass
                  [org.clojure/math.numeric-tower "0.0.4"]
                  [org.clojure/tools.cli "0.3.1"]
                  [org.clojure/data.csv "0.1.2"]
-                 [incanter/incanter "1.5.6"]
+                 [incanter/incanter "1.9.3"]
                  [org.jfree/jcommon "1.0.21"]    ;"mason/libraries/jcommon-1.0.21.jar"
                  [org.jfree/jfreechart "1.0.17"] ;"mason/libraries/jfreechart-1.0.17.jar"
                  [org.beanshell/bsh "2.0b4"]]    ;"mason/libraries/bsh-2.0b4.jar"
