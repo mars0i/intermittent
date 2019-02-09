@@ -1,10 +1,9 @@
-;;; This software is copyright 2015 by Marshall Abrams, and
+;;; This software is copyright 2015, 2019 by Marshall Abrams, and
 ;;; is distributed under the Gnu General Public License version 3.0 as
 ;;; specified in the file LICENSE.
 
 ;; Plot beta distributions, with various parameterizations.
-
-;; Also added Niskanen's PinkNoise class.  So this file is misnamed, I guess.
+;; Also added Niskanen's PinkNoise class.
 
 ;; NOTE: This is *not* used by the intermittran simulation
 ;; Intermittran uses the Beta class from MersenneTwisterFast.
