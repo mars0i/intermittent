@@ -28,10 +28,13 @@
            PinkNoiseFast
            [ec.util MersenneTwister MersenneTwisterFast])) ; note MersenneTwister is slow but implements java.util.Random
 
-(declare beta-plot beta-plot* beta-plot** alpha-parm beta-parm sample-size-parm variance variance*)
+;; EXAMPLES:
+; (simple-plot 200 (normalize 2 (pink-nums (make-pink 1 10))))
 
 ;; Used by multiple functions
 (def +xs+ (range 0.001 1 0.001)) ; Start the range above 0, which would map to Infinity when alpha < 1. Infinity confuses xy-plot.  Note there may be an extra value that's just below 1.
+
+(declare beta-plot beta-plot* beta-plot** alpha-parm beta-parm sample-size-parm variance variance*)
 
 (defn make-long-seed
   [] 
@@ -71,11 +74,32 @@
 (defn simple-plot
   "Displays a plot of the values in ys in relation to x values from 0 to
   the length of ys."
-  [ys]
-  (let [xs (range (count ys))
+  ([ys] (let [xs (range (count ys))
         xyp (ich/xy-plot)]
      (ic/view xyp)
      (ich/add-lines xyp xs ys)))
+  ([n ys] (simple-plot (take n ys))))
+
+;; for experiments with pink noise
+(defn normalize
+  "Applies mod to all numbers in xs, wrapping their values into [0,n).
+  Numbers >= n are mapped into the number above 0 after wrapping around up
+  as many times as necessary.  Negative numbers are wrapped around in the 
+  other direction.  For example, (normalize 1 xs) will map -2.3 to 0.7 ."
+  [n xs]
+  (map (fn [x] (mod x n)) xs))
+
+;; for experiments with pink noise
+(defn extrema
+  "Returns [min max] of xs."
+  ([xs] (let [xs-first (first xs)
+             xs-rest (rest xs)]
+         (reduce 
+           (fn [[mn mx] x]
+             [(min mn x) (max mx x)])
+           [xs-first xs-first]
+           xs-rest)))
+  ([n xs] (extrema (take n xs))))
 
 ;;;;;;;;;;;;;;;;;;
 
