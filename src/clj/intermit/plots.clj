@@ -72,13 +72,16 @@
   ([pink n] (repeatedly n (partial next-pink pink))))
 
 (defn simple-plot
-  "Displays a plot of the values in ys in relation to x values from 0 to
-  the length of ys."
-  ([ys] (let [xs (range (count ys))
-        xyp (ich/xy-plot)]
+  "Displays a plot of the values in ys in relation to x values from 0 to the length
+  of ys, and returns the plot object.  If xy-plot object xyp is provided, it is used;
+  otherwise a new xy-plot object is generated.  If n is provided, the sequence will
+  be of length n; otherwise it will be infinite."
+  ([ys] (simple-plot (ich/xy-plot) ys))
+  ([xyp ys]
+   (let [xs (range (count ys))]
      (ic/view xyp)
      (ich/add-lines xyp xs ys)))
-  ([n ys] (simple-plot (take n ys))))
+  ([xyp ys n] (simple-plot xyp (take n ys))))
 
 ;; for experiments with pink noise
 (defn normalize
