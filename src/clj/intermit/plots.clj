@@ -30,6 +30,7 @@
 
 ;; EXAMPLES:
 ; (simple-plot 200 (normalize 2 (pink-nums (make-pink 1 10))))
+; (map ist/mean (partition 100 1 (pink-nums (make-pink 1 1000))))
 
 ;; Used by multiple functions
 (def +xs+ (range 0.001 1 0.001)) ; Start the range above 0, which would map to Infinity when alpha < 1. Infinity confuses xy-plot.  Note there may be an extra value that's just below 1.
@@ -56,9 +57,16 @@
      rng))) 
 
 (defn make-pink
-  "Return a PinkNoise PRNG based on ec.util.MersenneTwister."
+  "Return a PinkNoise PRNG based on ec.util.MersenneTwisterFast."
   ([alpha poles] (make-pink (make-mst) alpha poles))
   ([rng alpha poles] (PinkNoiseFast. alpha poles rng)))
+
+(defn make-pink-slow
+  "Return a PinkNoise PRNG based on ec.util.MersenneTwister.
+  This uses the original, unmodified version of PinkNoise.
+  It's not noticeably slower than make-pink."
+  ([alpha poles] (make-pink (make-mst) alpha poles))
+  ([rng alpha poles] (PinkNoise. alpha poles rng)))
 
 (defn next-pink
   "Return the next double from a PinkNoise PRNG"
