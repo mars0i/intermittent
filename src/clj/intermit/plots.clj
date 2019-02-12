@@ -30,7 +30,16 @@
 
 ;; EXAMPLES:
 ; (simple-plot 200 (normalize 2 (pink-nums (make-pink 1 10))))
+;;
 ; (map ist/mean (partition 100 1 (pink-nums (make-pink 1 1000))))
+;; Define some pink noise values:
+;    (def ps (pink-nums (make-pink 1 1000)))
+;; Define a sequence of means over the first n values in the pink sequence:
+;    (def means (map mean (map take (map inc (range)) (repeat ps))))
+;; Plot the means to see whether they seem to converge:
+;    (simple-plot (take 1000 means))
+;; Same thing as a 1-liner:
+;    (simple-plot (take 1000 (map mean (map take (map inc (range)) (repeat (pink-nums (make-pink 1 1000)))))))
 
 ;; Used by multiple functions
 (def +xs+ (range 0.001 1 0.001)) ; Start the range above 0, which would map to Infinity when alpha < 1. Infinity confuses xy-plot.  Note there may be an extra value that's just below 1.
