@@ -444,20 +444,21 @@
   (relig-to-success r-to-s-param
                     (/ (sum-relig my-relig indivs) (inc (count indivs))))) ; inc to count my-relig as well
 
-;; DEF IS IN FLUX
-;; OBSOLETE DESCRIPTION:
+(defn relig-to-success
+  "Maps (averaged) relig value to a success value linearly."
+  ^double [^double success-threshold ^double relig]
+  relig)
+
 ;; This version uses a threshold function.  In BaliPlus.nlogo, I sometimes use a threshold function for relig-effect,
 ;; which calculates an effect on success from relig.  That's similar to this function.  However, in BaliPlus, there is
 ;; *also* an implicit threshold-ey function, it appears, based on the relig values of neighbors several steps away,
 ;; since harvest (success) is affected by whether they coordinate their crop patterns.  This success function combines
 ;; both effects.
-(defn relig-to-success
-  "OBSOLETE: Maps (averaged) relig value to a success value, using success-threshold
-  to control the mapping.  Current version returns 1 if 
-  relig >= success-thredhold, 0 otherwise."
+(defn relig-to-success-with-threshold
+  "Maps (averaged) relig value to a success value, using success-threshold
+  to control the mapping.  Returns 1 if relig >= success-threshold, 0 otherwise."
   ^double [^double success-threshold ^double relig]
-  relig)
-  ;(if (>= relig success-threshold) 1.0 0.0))
+  (if (>= relig success-threshold) 1.0 0.0))
 
 ;; NOTE this means that e.g. if indiv is isolated, then when it happens to get high relig, it will also have high success.  Is that realistic?
 ;(defn old-old-calc-success
@@ -498,8 +499,21 @@
  "Generate a beta-distributed value with given mean, and \"sample-size\", i.e.
  the sum of the usual alpha and beta parameters to a Beta distribution
  [alpha = sample-size * mean, and beta = sample-size * (1 - mean)]."
-  ^double [^AbstractDistribution dist ^double sample-size ^double mean]
-  (.nextDouble dist (* mean sample-size) (* (- 1 mean) sample-size)))
+  ^double [^AbstractDistribution beta-dist ^double sample-size ^double mean]
+  ;; hack because if alpha or beta is too close to zero, .nextDouble hangs.
+  (let [epsilon 0.00000001         ; java.lang.Double/MIN_VALUE is too small.
+        alpha' (* mean sample-size)
+        alpha  (if (pos? alpha') alpha' epsilon)  ; if zero, force to small double
+        beta'  (* (- 1 mean) sample-size)
+        beta   (if (pos? beta')  beta'  epsilon)] ; if zero, force to ssmall double
+    (.nextDouble beta-dist alpha beta)))
+
+;(defn simple-success-noise
+; "Generate a beta-distributed value with given mean, and \"sample-size\", i.e.
+; the sum of the usual alpha and beta parameters to a Beta distribution
+; [alpha = sample-size * mean, and beta = sample-size * (1 - mean)]."
+;  ^double [^AbstractDistribution dist ^double sample-size ^double mean]
+;  (.nextDouble dist (* mean sample-size) (* (- 1 mean) sample-size)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Shuffling/sampling functions
