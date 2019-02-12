@@ -113,8 +113,9 @@ that MASON needs.)
 
 ## Code notes:
 
-beta.clj is not used by intermittran; it's a utility for plotting beta
-distributions independent of intermittran.
+plot.clj is not used by intermittran; it's a utility for plotting 
+distributions independent of intermittran for the sake of exploring
+ways of configuring the model.
 
 See <a href="doc/code.md">code.md</a> for other notes on the code.
 
