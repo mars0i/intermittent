@@ -40,6 +40,8 @@
 ;    (simple-plot (take 1000 means))
 ;; Same thing as a 1-liner:
 ;    (simple-plot (take 1000 (map mean (map take (map inc (range)) (repeat (pink-nums (make-pink 1 1000)))))))
+;; Normalize the noise to [0,1]:
+;    (map (partial normal-logistic 1) (pink-nums (make-pink 1 1000)))
 
 ;; Used by multiple functions
 (def +xs+ (range 0.001 1 0.001)) ; Start the range above 0, which would map to Infinity when alpha < 1. Infinity confuses xy-plot.  Note there may be an extra value that's just below 1.
@@ -99,6 +101,17 @@
      (ic/view xyp)
      (ich/add-lines xyp xs ys)))
   ([xyp ys n] (simple-plot xyp (take n ys))))
+
+(defn normal-logistic
+  "Logistic function with max value 1, mid x value 0, and user-specified
+  growth rate.  Maps [-inf,inf] into [0,1].  (The range is a closed interval 
+  because doubles are not arbitrary-precision.)"
+  [growth-rate x]
+  (/ 
+    (inc
+      (java.lang.Math/exp (- (* growth-rate x))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; for experiments with pink noise
 (defn normalize
