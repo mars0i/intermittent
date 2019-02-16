@@ -78,6 +78,11 @@
      (flush-mst rng)
      rng))) 
 
+(defn roul
+  "Treats inputs as spins of a wheel of fortune with widths d."
+  [d x]
+  (if (odd? (int (quot (* d x) 1))) 1 0))
+
 (defn make-pink
   "Return a PinkNoise PRNG based on ec.util.MersenneTwisterFast."
   ([alpha poles] (make-pink (make-mst) alpha poles))
