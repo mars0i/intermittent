@@ -358,8 +358,8 @@
 ;; NOTE: Objects created by deftype are faster than those created by
 ;; defrecord when they are hashed (e.g. in the set that's used in sample-wout-repl).
 ;; 
-;; volatile-mutable is a bit inconvenient since it requires accessors,
-;; but it's faster than atoms, and these fields get accessed a lot.
+;; volatile-mutable or unsyncrhonized-mutable are a bit inconvenient since they 
+;; requires accessors, but faster than atoms, and these fields get accessed a lot.
 
 (defprotocol IndivP
   "Protocol for Indivs."
