@@ -396,7 +396,7 @@
     (get-rest-of-community [this] restofcommunity)
     (get-rest-of-pop [this] restofpop)
     (get-prev-speaker [this] prevspeaker)
-    (add-neighbor! [this new-neighbor] (set! neighbors (conj neighbors new-neighbor)))
+   (add-neighbor! [this new-neighbor] (set! neighbors (conj neighbors new-neighbor)))
     (set-rest-of-community! [this indivs] (set! restofcommunity indivs))
     (set-rest-of-pop! [this indivs] (set! restofpop indivs))
     ;; Religious cultural transmission:
@@ -492,7 +492,7 @@
 ;; nextGaussian has mean 0 and stddev 1, I believe
 (defn normal-noise
  "Add normally distributed noise with stddev to value, clipping to extrema 0.0 and 1.0."
-  ^double [^Normal gaussian ^double mean ^double stddev ^double value]
+  ^double [^AbstractDistribution gaussian ^double mean ^double stddev ^double value]
   (max 0.0 (min 1.0 (+ value ^double (.nextDouble gaussian mean stddev)))))
 
 (defn success-noise
