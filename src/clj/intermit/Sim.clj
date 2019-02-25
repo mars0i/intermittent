@@ -425,7 +425,8 @@
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
             ^InstanceState istate (.instanceState sim)
             ^double threshold @(.successThreshold istate) ;; CURRENTLY UNUSED?
-	    ;; TODO REPLACE THE FOLLOWING THREE LINES WITH GENERICIZED VERSIONS:
+	    ;; TODO REPLACE THE FOLLOWING THREE LINES WITH GENERICIZED VERSIONS.  MAKE USE OF
+            ;; NEW FUNCTIONS make-beta-dist, make-normal-dist, etc.
             ^Beta beta @(.beta istate)
             ^double beta-sample-size @(.successBetaSampleSize istate)]
         (set! success (success-noise beta beta-sample-size (calc-success threshold relig restofcommunity)))))
@@ -488,6 +489,22 @@
   "Given a double initial value and a collection of indivs, sums the success 
   values of indivs along with initial value.  Suitable for use with reduce."
   (partial reduce add-success))
+
+(defn make-normal-dist
+  "Returns a normal distribution object with specified mean and standard deviation."
+  ^AbstractDistribution [^MersenneTwisterFast rng ^double mean ^double stddev]
+  (Normal. mean stddev rng))
+
+(defn make-beta-dist
+  "Returns a beta distribution object with specified mean and sample size.  
+  (The alpha and beta parameters will be calculated from the mean and sample size.)"
+  ^AbstractDistribution [^MersenneTwisterFast rng ^double mean ^double sample-size]
+  (let [epsilon 0.00000001         ; java.lang.Double/MIN_VALUE is too small.
+        alpha' (* mean sample-size)
+        alpha  (if (pos? alpha') alpha' epsilon)  ; if zero, force to small double
+        beta'  (* (- 1 mean) sample-size)
+        beta   (if (pos? beta')  beta'  epsilon)] ; if zero, force to ssmall double
+    (Beta. alpha beta rng)))
 
 ;; nextGaussian has mean 0 and stddev 1, I believe
 (defn normal-noise
