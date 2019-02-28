@@ -492,19 +492,23 @@
 
 (defn make-normal-dist
   "Returns a normal distribution object with specified mean and standard deviation."
-  ^AbstractDistribution [^MersenneTwisterFast rng ^double mean ^double stddev]
+  ^AbstractDistribution [^MersenneTwisterFast rng ^double stddev ^double mean]
   (Normal. mean stddev rng))
 
 (defn make-beta-dist
   "Returns a beta distribution object with specified mean and sample size.  
   (The alpha and beta parameters will be calculated from the mean and sample size.)"
-  ^AbstractDistribution [^MersenneTwisterFast rng ^double mean ^double sample-size]
+  ^AbstractDistribution [^MersenneTwisterFast rng ^double sample-size ^double mean]
   (let [epsilon 0.00000001         ; java.lang.Double/MIN_VALUE is too small.
         alpha' (* mean sample-size)
         alpha  (if (pos? alpha') alpha' epsilon)  ; if zero, force to small double
         beta'  (* (- 1 mean) sample-size)
         beta   (if (pos? beta')  beta'  epsilon)] ; if zero, force to ssmall double
     (Beta. alpha beta rng)))
+
+(defn next-double
+  [^AbstractDistribution dist]
+  (.nextDouble dist))
 
 ;; nextGaussian has mean 0 and stddev 1, I believe
 (defn normal-noise
