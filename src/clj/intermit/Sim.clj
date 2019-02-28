@@ -86,7 +86,7 @@
          -getReligDistribution -getMeanReligTimeSeries -getMeanReligDistribution -getSuccessDistribution -getMeanSuccessTimeSeries -getMeanSuccessDistribution add-relig add-success 
          bag-shuffle bag-sample take-rand choose-others-from-pop choose-most-successful calc-success normal-noise success-noise make-indiv binomial-link-indivs! sequential-link-indivs! 
          both-link-indivs! link-style-name-to-idx link-indivs!  make-community-of-indivs make-communities-into-pop! collect-data report-run-params record-commandline-args! 
-         set-instance-state-from-commandline! -main -start relig-to-success
+         set-instance-state-from-commandline! -main -start relig-to-success make-normal-dist make-beta-dist
          ;; non-functions not defined immediately below:
          sum-relig sum-success link-style-names link-style-fns binomial-link-style-idx sequential-link-style-idx both-link-style-idx commandline)
 
