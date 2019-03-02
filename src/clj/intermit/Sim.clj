@@ -426,7 +426,8 @@
             ^MersenneTwisterFast rng (.random sim)
             ^InstanceState istate (.instanceState sim)
             ^double threshold @(.successThreshold istate) ;; CURRENTLY UNUSED?
-            ;^Beta beta @(.beta istate) ; obsolete
+            ;; TODO: Since the sample-size doesn't change between calls, could I/should I
+            ;; create this function and store it elsewhere?
             next-centered-double (partial next-beta-double rng @(.successBetaSampleSize istate)) ; will return random number relative to changing mean
             ;next-centered-double (partial next-normal-double rng stddev) ; will return random number relative to changing mean
            ]
