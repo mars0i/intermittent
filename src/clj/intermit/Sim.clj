@@ -86,7 +86,7 @@
          -getReligDistribution -getMeanReligTimeSeries -getMeanReligDistribution -getSuccessDistribution -getMeanSuccessTimeSeries -getMeanSuccessDistribution add-relig add-success 
          bag-shuffle bag-sample take-rand choose-others-from-pop choose-most-successful calc-success normal-noise success-noise make-indiv binomial-link-indivs! sequential-link-indivs! 
          both-link-indivs! link-style-name-to-idx link-indivs!  make-community-of-indivs make-communities-into-pop! collect-data report-run-params record-commandline-args! 
-         set-instance-state-from-commandline! -main -start relig-to-success make-normal-dist make-beta-dist
+         set-instance-state-from-commandline! -main -start relig-to-success make-normal-dist make-beta-dist next-normal-double next-beta-double
          ;; non-functions not defined immediately below:
          sum-relig sum-success link-style-names link-style-fns binomial-link-style-idx sequential-link-style-idx both-link-style-idx commandline)
 
@@ -423,13 +423,14 @@
     ;; Success determination (equivalent to harvest in BaliPlus):
     (update-success! [this sim-state]
       (let [^Sim sim sim-state ; can't type hint ^Sim in the parameter list
+            ^MersenneTwisterFast rng (.random sim)
             ^InstanceState istate (.instanceState sim)
             ^double threshold @(.successThreshold istate) ;; CURRENTLY UNUSED?
-	    ;; TODO REPLACE THE FOLLOWING THREE LINES WITH GENERICIZED VERSIONS.  MAKE USE OF
-            ;; NEW FUNCTIONS make-beta-dist, make-normal-dist, etc.
-            ^Beta beta @(.beta istate)
-            ^double beta-sample-size @(.successBetaSampleSize istate)]
-        (set! success (success-noise beta beta-sample-size (calc-success threshold relig restofcommunity)))))
+            ;^Beta beta @(.beta istate) ; obsolete
+            next-centered-double (partial next-beta-double rng @(.successBetaSampleSize istate)) ; will return random number relative to changing mean
+            ;next-centered-double (partial next-normal-double rng stddev) ; will return random number relative to changing mean
+           ]
+        (set! success (next-centered-double (calc-success threshold relig restofcommunity)))))
   Oriented2D ; display pointer in GUI
     (orientation2D [this] (+ (/ Math/PI 2) (* Math/PI success))) ; pointer goes from down (=0) to up (=1)
   Object
@@ -496,8 +497,8 @@
   (Normal. mean stddev rng))
 
 (defn make-beta-dist
-  "Returns a beta distribution object with specified mean and sample size.  
-  (The alpha and beta parameters will be calculated from the mean and sample size.)"
+  "Returns a beta distribution object with specified sample size and mean. (The
+  alpha and beta parameters will be calculated from the sample size and mean.)"
   ^AbstractDistribution [^MersenneTwisterFast rng ^double sample-size ^double mean]
   (let [epsilon 0.00000001         ; java.lang.Double/MIN_VALUE is too small.
         alpha' (* mean sample-size)
@@ -507,8 +508,23 @@
     (Beta. alpha beta rng)))
 
 (defn next-double
+  "Convenience function to return the next random double from a MASON 
+  distribution function."
   [^AbstractDistribution dist]
   (.nextDouble dist))
+
+(defn next-beta-double
+  "Makes a MASON beta distribution object with specified sample size and 
+  mean and returns the next random double. (The alpha and beta parameters 
+  will be calculated from the sample size and mean.)"
+  ^double [^MersenneTwisterFast rng ^double sample-size ^double mean]
+   (.nextDouble (make-beta-dist rng sample-size mean)))
+
+(defn next-normal-double
+  "Makes a MASON normal distribution object with specified standard deviation
+  and mean and returns the next random double."
+  ^double [^MersenneTwisterFast rng ^double stddev ^double mean]
+   (.nextDouble (make-normal-dist rng stddev mean))):w
 
 ;; nextGaussian has mean 0 and stddev 1, I believe
 (defn normal-noise
