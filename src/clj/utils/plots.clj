@@ -20,7 +20,7 @@
 ;; (save-pdf xyp filename)
 ;; where xyp is a plot object.
 
-(ns intermit.plots
+(ns utils.plots
   (:require [incanter.core :as ic]
             [incanter.stats :as ist]
             [incanter.charts :as ich])
