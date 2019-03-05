@@ -26,7 +26,8 @@
 ;; But put intermit.Sim's methods at end, so we can type-hint references to Indiv, etc. in them.
 (ns intermit.Sim
   (:require [clojure.tools.cli :as cli]
-            [clojure.pprint :as pp])
+            [clojure.pprint :as pp]
+            [utils.pink :as pink])
   (:import [sim.engine Steppable Schedule]
            [sim.portrayal Oriented2D]
            [sim.util Interval Double2D]
@@ -427,9 +428,11 @@
             ^InstanceState istate (.instanceState sim)
             ^double threshold @(.successThreshold istate) ;; CURRENTLY UNUSED?
             ;; TODO: Since the sample-size doesn't change between calls, could I/should I
-            ;; create this function and store it elsewhere?
+            ;; create this function and store it elsewhere?  AND CAN I MAKE THIS CONFIGURABLE
+            ;; FROM THE GUI OR COMMANDLINE?
+            ;next-centered-double (fn [_] (pink/next-normalized-double 0.5 (pink/make-pink rng 1 20))) ;; TODO how is this supposed to reflect the changing mean??  It's noise, after all.
             next-centered-double (partial next-beta-double rng @(.successBetaSampleSize istate)) ; will return random number relative to changing mean
-            ;next-centered-double (partial next-normal-double rng stddev) ; will return random number relative to changing mean
+            ;next-centered-double (partial next-normal-double rng stddev) ; TODO where does stddev come from?
            ]
         (set! success (next-centered-double (calc-success threshold relig restofcommunity)))))
   Oriented2D ; display pointer in GUI
